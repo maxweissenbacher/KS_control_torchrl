@@ -32,17 +32,29 @@ def _step(self, tensordict):
            (new_u.abs().max() > self.termination_threshold) or \
            (torch.isfinite(reward).all().logical_not())
     done = done.view(*tensordict.shape, 1)  # Env terminates if NaN value encountered or very large values
+
+    # The output no longer needs to be written in a "next" entry, this is now handled automatically
+    #out = TensorDict(
+    #                {
+    #                    "next": {
+    #                        "u": new_u,
+    #                        "observation": new_observation,
+    #                        "reward": reward,
+    #                        "done": done,
+    #                    }
+    #                },
+    #                tensordict.shape,
+    #                )
     out = TensorDict(
-                    {
-                        "next": {
-                            "u": new_u,
-                            "observation": new_observation,
-                            "reward": reward,
-                            "done": done,
-                        }
-                    },
-                    tensordict.shape,
-                    )
+        {
+            "u": new_u,
+            "observation": new_observation,
+            "reward": reward,
+            "done": done,
+        },
+        tensordict.shape,
+    )
+
     return out
 
 
@@ -70,7 +82,6 @@ def _reset(self, tensordict):
         {
             "u": u,
             "observation": u[self.observation_inds],
-            "reward": reward,
         },
         self.batch_size,
     )
