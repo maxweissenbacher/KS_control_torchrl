@@ -20,7 +20,7 @@ from utils import (
 )
 
 
-@hydra.main(version_base="1.1", config_path=".", config_name="config")
+@hydra.main(version_base="1.1", config_path="tqc", config_name="config")
 def main(cfg):
     device = torch.device(cfg.network.device)
 

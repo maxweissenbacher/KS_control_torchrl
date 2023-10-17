@@ -5,12 +5,12 @@ env:
   num_sensors: 3
   burnin: 0
   exp_name: KS_TQC
-  max_episode_steps: 1_000
+  max_episode_steps: 2_000
   seed: 42
 
 # collector
-collector:  # all hyperparams checked
-  total_frames: 1_000_000
+collector:
+  total_frames: 4_000_000
   init_random_frames: 25_000
   frames_per_batch: 1_000
   collector_device: cpu
@@ -18,13 +18,13 @@ collector:  # all hyperparams checked
   reset_at_each_iter: False
 
 # replay buffer
-replay_buffer:  # all hyperparams checked
+replay_buffer:
   size: 1_000_000
   prb: False # use prioritized experience replay; the original TQC paper does not prioritized replay
   scratch_dir: ${env.exp_name}_${env.seed}
 
 # optim
-optim:  # all hyperparams checked
+optim:
   utd_ratio: 1.0
   gamma: 0.99
   lr: 3.0e-4
@@ -35,7 +35,7 @@ optim:  # all hyperparams checked
   adam_eps: 1.0e-8
 
 # network
-network:  # all hyperparams checked
+network:
   actor_hidden_sizes: [256, 256]
   critic_hidden_sizes: [512, 512, 512]
   n_quantiles: 25

@@ -23,7 +23,8 @@ def _step(self, tensordict):
     # ... however the KS solver needs to be compatible with torch.vmap!
     # new_u = torch.vmap(self.solver_step)(u, action)
 
-    reward = - torch.linalg.norm(new_u, dim=-1) / self.N  # normalised L2 norm of solution
+    #reward = - torch.linalg.norm(new_u, dim=-1) / self.N  # normalised L2 norm of solution
+    reward = - torch.linalg.norm(new_u, dim=-1)  # L2 norm of solution
     reward = reward.view(*tensordict.shape, 1)
 
     done = (torch.isfinite(new_u).all().logical_not()) or \
@@ -107,7 +108,7 @@ class KSenv(EnvBase):
         self.observation_inds = [int(x) for x in (self.N / (2 * np.pi)) * sensor_locs]
         self.num_observations = len(self.observation_inds)
         assert len(self.observation_inds) == len(set(self.observation_inds))
-        self.termination_threshold = 1e2  # Terminate the simulation if max(u) exceeds this threshold
+        self.termination_threshold = 20.  # Terminate the simulation if max(u) exceeds this threshold
         self.action_low = -1.0  # Minimum allowed actuation (per actuator)
         self.action_high = 1.0  # Maximum allowed actuation (per actuator)
         self.device = device
