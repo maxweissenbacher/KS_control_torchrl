@@ -16,6 +16,7 @@ from utils import (
     make_replay_buffer,
     make_tqc_agent,
     make_tqc_optimizer,
+    make_ks_env,
 )
 
 
@@ -27,7 +28,9 @@ def main(cfg):
     np.random.seed(cfg.env.seed)
 
     # Create environments
-    train_env, eval_env = make_environment(cfg)
+    train_env, eval_env = make_ks_env(cfg)
+
+    print('here')
 
     # Create agent
     model, exploration_policy = make_tqc_agent(cfg, train_env, eval_env, device)

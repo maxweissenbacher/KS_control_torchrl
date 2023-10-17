@@ -2,27 +2,7 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
-"""TQC Example.
 
-This is a simple self-contained example of a TQC training script.
-
-The implementation is based on the implementation of SAC in the examples
-directory. TQC was introduced in
-
-"Controlling Overestimation Bias with Truncated Mixture of Continuous
-Distributional Quantile Critics" (Arsenii Kuznetsov, Pavel Shvechikov,
-Alexander Grishin, Dmitry Vetrov, 2020)
-
-Available from https://proceedings.mlr.press/v119/kuznetsov20a.html.
-
-Oftentimes, we follow the naming conventions used in the original TQC
-PyTorch implementation, to facilitate the comparison with the present
-implementation. Original PyTorch TQC code is available here:
-
-https://github.com/SamsungLabs/tqc_pytorch/tree/master
-
-The helper functions are coded in the utils.py associated with this script.
-"""
 import pickle
 import time
 import hydra
@@ -30,6 +10,7 @@ import numpy as np
 import torch
 import torch.cuda
 import tqdm
+import numpy as np
 from tensordict import TensorDict
 from torchrl.envs.utils import ExplorationType, set_exploration_type
 
@@ -38,11 +19,11 @@ from utils import (
     log_metrics,
     log_metrics_2,
     make_collector,
-    make_environment,
     make_loss_module,
     make_replay_buffer,
     make_tqc_agent,
     make_tqc_optimizer,
+    make_ks_env,
 )
 
 
@@ -50,24 +31,17 @@ from utils import (
 def main(cfg: "DictConfig"):  # noqa: F821
     device = torch.device(cfg.network.device)
 
+    print('here')
+
     # Create logger
-    exp_name = generate_exp_name("SAC", cfg.env.exp_name)
-    logger = None
+    exp_name = generate_exp_name("TQC", cfg.env.exp_name)
     logs = {}
-    # Logging isn't working for me atm - figure this out later
-    #if cfg.logger.backend:
-    #    logger = get_logger(
-    #        logger_type=cfg.logger.backend,
-    #        logger_name="sac_logging/wandb",
-    #        experiment_name=exp_name,
-    #        wandb_kwargs={"mode": cfg.logger.mode, "config": cfg},
-    #    )
 
     torch.manual_seed(cfg.env.seed)
     np.random.seed(cfg.env.seed)
 
     # Create environments
-    train_env, eval_env = make_environment(cfg)
+    train_env, eval_env = make_ks_env(cfg)
 
     # Create agent
     model, exploration_policy = make_tqc_agent(cfg, train_env, eval_env, device)
@@ -147,8 +121,8 @@ def main(cfg: "DictConfig"):  # noqa: F821
                 # Sample from replay buffer
                 sampled_tensordict = replay_buffer.sample().clone()
 
-                print(sampled_tensordict)
-                print('stop here')
+                #print(sampled_tensordict)
+                #print('stop here')
 
                 # Compute loss
                 loss_td = loss_module(sampled_tensordict)
@@ -222,8 +196,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
                 eval_reward = eval_rollout["next", "reward"].sum(-2).mean().item()
                 metrics_to_log["eval/reward"] = eval_reward
                 metrics_to_log["eval/time"] = eval_time
-        if logger is not None:
-            log_metrics(logger, metrics_to_log, collected_frames)
 
         # TO-DO: remove once logging is fixed
         if True:

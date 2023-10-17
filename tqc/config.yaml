@@ -1,9 +1,10 @@
 # environment and task
 env:
-  name: MountainCarContinuous-v0
-  task: ""
-  exp_name: ${env.name}_TQC
-  library: gymnasium
+  nu: 0.08
+  num_actuators: 4
+  num_sensors: 3
+  burnin: 0
+  exp_name: KS_TQC
   max_episode_steps: 1_000
   seed: 42
 

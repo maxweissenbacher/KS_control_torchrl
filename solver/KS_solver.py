@@ -26,6 +26,8 @@ class KS:
         :param actuator_locs: Torch tensor. Specifies the locations of the actuators in the interval [0, 2*pi].
                               Cannot be empty or unspecified. Must be of shape [n] for some n > 0.
         """
+        # torch.set_default_dtype(torch.float64)
+
         # Convert the 'viscosity' parameter to a length parameter - this is numerically more stable
         self.L = 2 * torch.pi / torch.sqrt(torch.tensor(nu))
         self.n = int(N)  # Ensure that N is integer

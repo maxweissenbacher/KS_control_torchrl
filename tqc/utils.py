@@ -14,7 +14,7 @@ from torchrl.data import TensorDictPrioritizedReplayBuffer, TensorDictReplayBuff
 from torchrl.data.replay_buffers.storages import LazyMemmapStorage
 from torchrl.envs import Compose, DoubleToFloat, EnvCreator, ParallelEnv, TransformedEnv
 from torchrl.envs.libs.gym import GymEnv, set_gym_backend
-from torchrl.envs.transforms import InitTracker, RewardSum, StepCounter
+from torchrl.envs.transforms import InitTracker, RewardSum, StepCounter, FiniteTensorDictCheck, ObservationNorm
 from torchrl.envs.utils import ExplorationType, set_exploration_type
 from torchrl.modules import MLP, ProbabilisticActor, ValueOperator
 from torchrl.modules.distributions import TanhNormal
@@ -23,6 +23,7 @@ from torchrl.data import CompositeSpec, TensorSpec
 from torchrl.objectives.common import LossModule
 from tensordict.tensordict import TensorDict, TensorDictBase
 from typing import Tuple
+from solver.KS_environment import KSenv
 
 
 # ====================================================================
@@ -30,44 +31,49 @@ from typing import Tuple
 # -----------------
 
 
-def env_maker(task, device="cpu"):
-    with set_gym_backend("gym"):
-        return GymEnv(
-            task,
-            device=device,
-        )
+def make_ks_env(cfg):
+    transforms = Compose(
+        InitTracker(),
+        StepCounter(cfg.env.max_episode_steps),
+        # DoubleToFloat(),
+        RewardSum(),
+        FiniteTensorDictCheck(),
+        # ObservationNorm(in_keys=["observation"], loc=0., scale=10.),
+    )
+    actuator_locs = torch.tensor(np.linspace(start=0.0, stop=2*torch.pi, num=cfg.env.num_actuators, endpoint=False))
+    sensor_locs = torch.tensor(np.linspace(start=0.0, stop=2*torch.pi, num=cfg.env.num_sensors, endpoint=False))
 
-
-def apply_env_transforms(env, max_episode_steps=1000):
-    transformed_env = TransformedEnv(
-        env,
-        Compose(
-            InitTracker(),
-            StepCounter(max_episode_steps),
-            DoubleToFloat(),
-            RewardSum(),
+    train_env = TransformedEnv(
+        ParallelEnv(
+            cfg.collector.env_per_collector,
+            EnvCreator(
+                lambda: KSenv(
+                    nu=float(cfg.env.nu),
+                    actuator_locs=actuator_locs,
+                    sensor_locs=sensor_locs,
+                    burn_in=int(cfg.env.burnin)
+                )
+            )
         ),
+        transforms
     )
-    return transformed_env
-
-
-def make_environment(cfg):
-    """Make environments for training and evaluation."""
-    parallel_env = ParallelEnv(
-        cfg.collector.env_per_collector,
-        EnvCreator(lambda: env_maker(task=cfg.env.name)),
-    )
-    parallel_env.set_seed(cfg.env.seed)
-
-    train_env = apply_env_transforms(parallel_env, cfg.env.max_episode_steps)
+    train_env.set_seed(cfg.env.seed)
 
     eval_env = TransformedEnv(
         ParallelEnv(
             cfg.collector.env_per_collector,
-            EnvCreator(lambda: env_maker(task=cfg.env.name)),
+            EnvCreator(
+                lambda: KSenv(
+                    nu=float(cfg.env.nu),
+                    actuator_locs=actuator_locs,
+                    sensor_locs=sensor_locs,
+                    burn_in=int(cfg.env.burnin)
+                )
+            )
         ),
-        train_env.transform.clone(),
+        train_env.transform.clone()
     )
+
     return train_env, eval_env
 
 
@@ -400,6 +406,7 @@ def log_metrics(logger, metrics, step):
     for metric_name, metric_value in metrics.items():
         logger.log_scalar(metric_name, metric_value, step)
 
+
 # Remove this once the logging is fixed, just for testing now
 def log_metrics_2(logs, metrics):
     for metric_name, metric_value in metrics.items():
@@ -407,7 +414,6 @@ def log_metrics_2(logs, metrics):
             logs[metric_name].append(metric_value)
         else:
             logs[metric_name] = [metric_value]
-
 
 
 def get_activation(cfg):
