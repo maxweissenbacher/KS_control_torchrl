@@ -22,20 +22,21 @@ if __name__ == '__main__':
 
     N = 512  # number of collocation points
     dt = 0.5 # timestep size
-    ks = KS(nu=0.01, N=N, dt=dt, actuator_locs=torch.tensor([0.0, np.pi / 2, np.pi, 3 * np.pi / 2]))
+    actuator_locs = torch.tensor(np.linspace(0.0, 2*np.pi, num=12, endpoint=False))
+    ks = KS(nu=0.01, N=N, dt=dt, actuator_locs=actuator_locs)
 
     # Random initial data
     u = 0.0001 * np.random.normal(size=N)  # noisy intial data
     u = u - u.mean()
     u = torch.tensor(u)
 
-    action = torch.zeros(4)
-
-    action2 = torch.tensor([1.0,0.5,0.3,0.7])
+    action = torch.zeros(ks.num_actuators)
+    action1 = torch.ones(ks.num_actuators)
+    action2 = torch.tensor(np.random.uniform(size=ks.num_actuators), dtype=torch.float32)
 
     # Plot the profile of the actuators
     xx = np.linspace(0.0,2*np.pi,num=N)
-    plt.plot(xx, ks.B @ action2)
+    plt.plot(xx, ks.B @ action1)
     #plt.plot(xx, torch.sum(ks.B, dim=1))
     plt.title('Actuator profile in domain')
     plt.show()
