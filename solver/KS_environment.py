@@ -14,84 +14,6 @@ from solver.KS_solver import KS
 from plot.plotting import contourplot_KS
 
 
-def _step(self, tensordict):
-    u = tensordict["u"]  # Solution at previous timestep
-    action = tensordict["action"]  # Extract action from tensordict
-    new_u = self.solver_step(u, action)  # Take a step using the PDE solver
-    new_observation = new_u[self.observation_inds]  # Evaluate at desired indices
-    # To allow for batched computations, use this instead:
-    # ... however the KS solver needs to be compatible with torch.vmap!
-    # new_u = torch.vmap(self.solver_step)(u, action)
-
-    #reward = - torch.linalg.norm(new_u, dim=-1) / self.N  # normalised L2 norm of solution
-    reward = - torch.linalg.norm(new_u, dim=-1)  # L2 norm of solution
-    reward = reward.view(*tensordict.shape, 1)
-
-    done = (torch.isfinite(new_u).all().logical_not()) or \
-           (new_u.abs().max() > self.termination_threshold) or \
-           (torch.isfinite(reward).all().logical_not())
-    done = done.view(*tensordict.shape, 1)  # Env terminates if NaN value encountered or very large values
-    out = TensorDict(
-        {
-            "u": new_u,
-            "observation": new_observation,
-            "reward": reward,
-            "done": done,
-        },
-        tensordict.shape,
-    )
-    return out
-
-
-def _reset(self, tensordict):
-    # Uniformly random initial data
-    # u = torch.rand([*tensordict.shape, tensordict["params", "N"]], generator=self.rng, device=self.device)
-    # u = 0.01 * u
-    # u = u-u.mean(dim=-1).unsqueeze(-1)
-
-    # Initial data drawn from IID normal distributions
-    zrs = torch.zeros([*self.batch_size, self.N])
-    ons = torch.ones([*self.batch_size, self.N])
-    u = torch.normal(mean=zrs, std=ons, generator=self.rng)
-    u = self.initial_amplitude * u
-    u = u - u.mean(dim=-1).unsqueeze(-1)
-
-    # Burn in
-    for _ in range(self.burn_in):
-        u = self.solver_step(u, torch.zeros(self.action_size))
-
-    out = TensorDict(
-        {
-            "u": u,
-            "observation": u[self.observation_inds],
-        },
-        self.batch_size,
-    )
-    return out
-
-
-def _make_spec(self):
-    self.observation_spec = CompositeSpec(
-        u=UnboundedContinuousTensorSpec(shape=(*self.batch_size, self.N), dtype=torch.float32),
-        observation=UnboundedContinuousTensorSpec(shape=(*self.batch_size, self.num_observations), dtype=torch.float32),
-        shape=()
-    )
-    self.state_spec = CompositeSpec(
-        u=UnboundedContinuousTensorSpec(shape=(*self.batch_size, self.N), dtype=torch.float32),
-        shape=()
-    )
-    self.action_spec = BoundedTensorSpec(low=self.action_low,
-                                         high=self.action_high,
-                                         shape=[self.action_size],
-                                         dtype=torch.float32)
-    self.reward_spec = UnboundedContinuousTensorSpec(shape=(*self.batch_size, 1), dtype=torch.float32)
-
-
-def _set_seed(self, seed: Optional[int]):
-    rng = torch.manual_seed(seed)
-    self.rng = rng
-
-
 class KSenv(EnvBase):
     metadata = {}
     batch_locked = False
@@ -125,10 +47,80 @@ class KSenv(EnvBase):
                               actuator_locs=self.actuator_locs
                               ).advance
 
-    _make_spec = _make_spec
-    _reset = _reset
-    _step = _step
-    _set_seed = _set_seed
+    def _step(self, tensordict):
+        u = tensordict["u"]  # Solution at previous timestep
+        action = tensordict["action"]  # Extract action from tensordict
+        new_u = self.solver_step(u, action)  # Take a step using the PDE solver
+        new_observation = new_u[self.observation_inds]  # Evaluate at desired indices
+        # To allow for batched computations, use this instead:
+        # ... however the KS solver needs to be compatible with torch.vmap!
+        # new_u = torch.vmap(self.solver_step)(u, action)
+
+        # reward = - torch.linalg.norm(new_u, dim=-1) / self.N  # normalised L2 norm of solution
+        reward = - torch.linalg.norm(new_u, dim=-1)  # L2 norm of solution
+        reward = reward.view(*tensordict.shape, 1)
+
+        done = (torch.isfinite(new_u).all().logical_not()) or \
+               (new_u.abs().max() > self.termination_threshold) or \
+               (torch.isfinite(reward).all().logical_not())
+        done = done.view(*tensordict.shape, 1)  # Env terminates if NaN value encountered or very large values
+        out = TensorDict(
+            {
+                "u": new_u,
+                "observation": new_observation,
+                "reward": reward,
+                "done": done,
+            },
+            tensordict.shape,
+        )
+        return out
+
+    def _reset(self, tensordict):
+        # Uniformly random initial data
+        # u = torch.rand([*tensordict.shape, tensordict["params", "N"]], generator=self.rng, device=self.device)
+        # u = 0.01 * u
+        # u = u-u.mean(dim=-1).unsqueeze(-1)
+
+        # Initial data drawn from IID normal distributions
+        zrs = torch.zeros([*self.batch_size, self.N])
+        ons = torch.ones([*self.batch_size, self.N])
+        u = torch.normal(mean=zrs, std=ons, generator=self.rng)
+        u = self.initial_amplitude * u
+        u = u - u.mean(dim=-1).unsqueeze(-1)
+
+        # Burn in
+        for _ in range(self.burn_in):
+            u = self.solver_step(u, torch.zeros(self.action_size))
+
+        out = TensorDict(
+            {
+                "u": u,
+                "observation": u[self.observation_inds],
+            },
+            self.batch_size,
+        )
+        return out
+
+    def _make_spec(self):
+        self.observation_spec = CompositeSpec(
+            u=UnboundedContinuousTensorSpec(shape=(*self.batch_size, self.N), dtype=torch.float32),
+            observation=UnboundedContinuousTensorSpec(shape=(*self.batch_size, self.num_observations),
+                                                      dtype=torch.float32),
+            shape=()
+        )
+        self.state_spec = CompositeSpec(
+            u=UnboundedContinuousTensorSpec(shape=(*self.batch_size, self.N), dtype=torch.float32),
+            shape=()
+        )
+        self.action_spec = BoundedTensorSpec(low=self.action_low,
+                                             high=self.action_high,
+                                             shape=[self.action_size],
+                                             dtype=torch.float32)
+        self.reward_spec = UnboundedContinuousTensorSpec(shape=(*self.batch_size, 1), dtype=torch.float32)
+
+    def _set_seed(self, seed: Optional[int]):
+        rng = torch.manual_seed(seed)
+        self.rng = rng
 
 
 if __name__ == '__main__':
