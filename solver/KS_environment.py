@@ -60,9 +60,7 @@ class KSenv(EnvBase):
         reward = - torch.linalg.norm(new_u, dim=-1)  # L2 norm of solution
         reward = reward.view(*tensordict.shape, 1)
 
-        done = (torch.isfinite(new_u).all().logical_not()) or \
-               (new_u.abs().max() > self.termination_threshold) or \
-               (torch.isfinite(reward).all().logical_not())
+        done = torch.tensor(new_u.abs().max() > self.termination_threshold, dtype=torch.bool)
         done = done.view(*tensordict.shape, 1)  # Env terminates if NaN value encountered or very large values
         out = TensorDict(
             {
