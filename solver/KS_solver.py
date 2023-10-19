@@ -31,13 +31,14 @@ class KS:
         # Convert the 'viscosity' parameter to a length parameter - this is numerically more stable
         self.L = 2 * torch.pi / torch.sqrt(torch.tensor(nu))
         self.n = int(N)  # Ensure that N is integer
-        self.dt = torch.tensor(dt, requires_grad=True)  # Ensure dt is float
+        self.dt = torch.tensor(dt, requires_grad=True)  # TO-DO: why is there required_grad=True here?
         self.x = torch.arange(self.n) * self.L / self.n
         self.k = self.n * torch.fft.fftfreq(self.n)[0:self.n // 2 + 1] * 2 * torch.pi / self.L
         self.ik = 1j * self.k  # spectral derivative operator
         self.lin = self.k ** 2 - self.k ** 4  # Fourier multipliers for linear term
 
         # Actuation set-up
+        self.num_actuators = actuator_locs.size()[-1]
         self.scale = self.L/(2*torch.pi) * 0.1  # Rescale so that we represent the same actuator shape in [0, 2*pi]
         # This should really be doable with vmap...
         B_list = []
