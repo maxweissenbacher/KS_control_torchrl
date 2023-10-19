@@ -6,7 +6,6 @@
 import pickle
 import time
 import hydra
-import numpy as np
 import torch
 import torch.cuda
 import tqdm
@@ -14,9 +13,8 @@ import numpy as np
 from tensordict import TensorDict
 from torchrl.envs.utils import ExplorationType, set_exploration_type
 
-from torchrl.record.loggers import generate_exp_name, get_logger
+from torchrl.record.loggers import generate_exp_name
 from utils import (
-    log_metrics,
     log_metrics_2,
     make_collector,
     make_loss_module,
@@ -30,6 +28,8 @@ from utils import (
 @hydra.main(version_base="1.1", config_path="", config_name="config")
 def main(cfg: "DictConfig"):  # noqa: F821
     device = torch.device(cfg.network.device)
+
+    LOGGING_TO_CONSOLE = True
 
     print('here')
 
@@ -169,10 +169,9 @@ def main(cfg: "DictConfig"):  # noqa: F821
         metrics_to_log = {}
         if len(episode_rewards) > 0:
             episode_length = tensordict["next", "step_count"][episode_end]
-            metrics_to_log["train/reward"] = episode_rewards.mean().item()
-            metrics_to_log["train/episode_length"] = episode_length.sum().item() / len(
-                episode_length
-            )
+            metrics_to_log["train/reward"] = episode_rewards.mean().item() / episode_length
+            metrics_to_log["train/last_reward"] = tensordict["next", "reward"][episode_end]
+            metrics_to_log["train/episode_length"] = episode_length.sum().item() / len(episode_length)
         if collected_frames >= init_random_frames:
             metrics_to_log["train/q_loss"] = losses.get("loss_critic").mean().item()
             metrics_to_log["train/actor_loss"] = losses.get("loss_actor").mean().item()
@@ -193,19 +192,22 @@ def main(cfg: "DictConfig"):  # noqa: F821
                     break_when_any_done=True,
                 )
                 eval_time = time.time() - eval_start
-                eval_reward = eval_rollout["next", "reward"].sum(-2).mean().item()
+                eval_reward = eval_rollout["next", "reward"].sum(-2).mean().item() / eval_rollout_steps
+                last_reward = eval_rollout["next", "reward"][..., -1, :].item()
                 metrics_to_log["eval/reward"] = eval_reward
+                metrics_to_log["eval/last_reward"] = last_reward
                 metrics_to_log["eval/time"] = eval_time
 
-        # TO-DO: remove once logging is fixed
-        if True:
+        if LOGGING_TO_CONSOLE:
             log_metrics_2(logs, metrics_to_log)
 
         sampling_start = time.time()
 
     collector.shutdown()
 
-    # TO-DO: remove once logging is fixed
+    # Save logs to file
+    for key, vals in logs.items():
+        logs[key] = np.array(vals)
     with open("logs.pkl", "wb") as f:
         pickle.dump(logs, f)
     print('Saved logs to logs.pkl.')
