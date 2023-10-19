@@ -11,7 +11,6 @@ from torchrl.record.loggers import generate_exp_name, get_logger
 from utils import (
     log_metrics,
     make_collector,
-    make_environment,
     make_loss_module,
     make_replay_buffer,
     make_tqc_agent,
@@ -20,7 +19,7 @@ from utils import (
 )
 
 
-@hydra.main(version_base="1.1", config_path="tqc", config_name="config")
+@hydra.main(version_base="1.1", config_path="", config_name="config")
 def main(cfg):
     device = torch.device(cfg.network.device)
 
@@ -30,10 +29,10 @@ def main(cfg):
     # Create environments
     train_env, eval_env = make_ks_env(cfg)
 
-    print('here')
-
     # Create agent
     model, exploration_policy = make_tqc_agent(cfg, train_env, eval_env, device)
+
+    print('stop here')
 
     # Test evaluation rollout
     eval_steps = 500
@@ -53,3 +52,4 @@ def main(cfg):
 
 if __name__ == '__main__':
     main()
+
