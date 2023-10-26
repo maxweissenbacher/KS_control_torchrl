@@ -1,0 +1,50 @@
+env:
+  nu: 0.05
+  num_actuators: 10
+  num_sensors: 64
+  burnin: 0
+  exp_name: KS
+  max_episode_steps: 1000
+  frame_skip: 3
+  soft_action: false
+  seed: 3324797049
+collector:
+  total_frames: 1000000
+  init_random_frames: 25000
+  frames_per_batch: 1000
+  collector_device: cpu
+  env_per_collector: 1
+  reset_at_each_iter: false
+replay_buffer:
+  size: 1000000
+  prb: false
+  scratch_dir: null
+optim:
+  utd_ratio: 1.0
+  actuator_loss_weight: 1.0e-05
+  gamma: 0.99
+  lr: 0.0003
+  weight_decay: 0.0
+  batch_size: 256
+  target_update_polyak: 0.995
+  alpha_init: 1.0
+  adam_eps: 1.0e-08
+network:
+  actor_hidden_sizes:
+  - 256
+  - 256
+  critic_hidden_sizes:
+  - 512
+  - 512
+  - 512
+  n_quantiles: 25
+  n_nets: 5
+  top_quantiles_to_drop_per_net: 2
+  activation: relu
+  default_policy_scale: 1.0
+  scale_lb: 0.1
+  device: cuda
+logger:
+  backend: wandb
+  mode: online
+  eval_iter: 25000

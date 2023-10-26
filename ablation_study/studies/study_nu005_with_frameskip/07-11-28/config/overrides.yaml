@@ -1,0 +1,5 @@
+- optim.actuator_loss_weight=0.00001
+- env.frame_skip=3
+- env.nu=0.05
+- env.seed=3324797049
+- env.num_sensors=19
