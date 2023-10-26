@@ -18,7 +18,7 @@ def normal_pdf(x, loc, scale):
 
 class KS:
 
-    def __init__(self, actuator_locs, nu=1.0, N=256, dt=0.5):
+    def __init__(self, actuator_locs, nu=1.0, N=256, dt=0.5, device='cpu'):
         """
         :param nu: 'Viscosity' parameter of the KS equation.
         :param N: Number of collocation points
@@ -27,13 +27,14 @@ class KS:
                               Cannot be empty or unspecified. Must be of shape [n] for some n > 0.
         """
         # torch.set_default_dtype(torch.float64)
+        self.device = torch.device(device)
 
         # Convert the 'viscosity' parameter to a length parameter - this is numerically more stable
-        self.L = 2 * torch.pi / torch.sqrt(torch.tensor(nu))
-        self.n = int(N)  # Ensure that N is integer
-        self.dt = torch.tensor(dt, requires_grad=True)  # TO-DO: why is there required_grad=True here?
-        self.x = torch.arange(self.n) * self.L / self.n
-        self.k = self.n * torch.fft.fftfreq(self.n)[0:self.n // 2 + 1] * 2 * torch.pi / self.L
+        self.L = (2 * torch.pi / torch.sqrt(torch.tensor(nu))).to(self.device)
+        self.n = torch.tensor(N, dtype=torch.int, device=self.device)  # Ensure that N is integer
+        self.dt = torch.tensor(dt, device=self.device)
+        self.x = torch.arange(self.n, device=self.device) * self.L / self.n
+        self.k = (self.n * torch.fft.fftfreq(self.n)[0:self.n // 2 + 1] * 2 * torch.pi / self.L).to(self.device)
         self.ik = 1j * self.k  # spectral derivative operator
         self.lin = self.k ** 2 - self.k ** 4  # Fourier multipliers for linear term
 
@@ -43,8 +44,8 @@ class KS:
         # This should really be doable with vmap...
         B_list = []
         for loc in actuator_locs:
-            B_list.append(self.normal_pdf_periodic(self.L/(2*torch.pi) * loc))
-        self.B = torch.stack(B_list, dim=1)
+            B_list.append(self.normal_pdf_periodic(self.L / (2 * torch.pi) * loc))
+        self.B = torch.stack(B_list, dim=1).to(self.device)
 
     def nlterm(self, u, f):
         # compute tendency from nonlinear term. advection + forcing
@@ -85,14 +86,15 @@ class KS:
         :param loc: Float
         :return: torch.tensor of shape self.x.shape
         """
-        y = torch.zeros(self.x.size())
+        y = torch.zeros(self.x.size(), device=self.device)
         for shift in range(-3, 3):
             y += torch.exp(torch.distributions.normal.Normal(loc, self.scale).log_prob(self.x + shift*self.L))
         y = y/torch.max(y)
         return y
 
 if __name__ == '__main__':
-    ks = KS(actuator_locs=[0., torch.pi])
-    u = torch.zeros(ks.n)
+    ks = KS(actuator_locs=torch.tensor([0., torch.pi]), device='cuda')
+    u = torch.zeros(ks.n, device='cuda')
+    ks.advance(u, torch.zeros(2, device='cuda'))
 
     print('here')

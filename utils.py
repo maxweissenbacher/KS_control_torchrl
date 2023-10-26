@@ -4,6 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 import copy
 
+import tempfile
+from contextlib import nullcontext
 import torch
 import numpy as np
 from tensordict.nn import InteractionType, TensorDictModule
@@ -42,8 +44,9 @@ def make_ks_env(cfg):
         #FrameSkipTransform(frame_skip=cfg.env.frame_skip),
         # ObservationNorm(in_keys=["observation"], loc=0., scale=10.),
     )
-    actuator_locs = torch.tensor(np.linspace(start=0.0, stop=2*torch.pi, num=cfg.env.num_actuators, endpoint=False))
-    sensor_locs = torch.tensor(np.linspace(start=0.0, stop=2*torch.pi, num=cfg.env.num_sensors, endpoint=False))
+    device = cfg.collector.collector_device
+    actuator_locs = torch.tensor(np.linspace(start=0.0, stop=2*torch.pi, num=cfg.env.num_actuators, endpoint=False), device=device)
+    sensor_locs = torch.tensor(np.linspace(start=0.0, stop=2*torch.pi, num=cfg.env.num_sensors, endpoint=False), device=device)
 
     train_env = TransformedEnv(
         ParallelEnv(
