@@ -192,10 +192,22 @@ def main(cfg: "DictConfig"):  # noqa: F821
                     break_when_any_done=True,
                 )
                 eval_time = time.time() - eval_start
-                eval_reward = eval_rollout["next", "reward"].sum(-2).mean().item() / eval_rollout_steps
-                last_reward = eval_rollout["next", "reward"][..., -1, :].item()
+                # Compute total reward (norm of solution + norm of actuation)
+                eval_reward = eval_rollout["next", "reward"].mean(-2).mean().item()
+                last_reward = eval_rollout["next", "reward"][..., -1, :].mean().item()
+                # Compute u component of reward
+                eval_reward_u = - torch.linalg.norm(eval_rollout["next", "u"], dim=-1).mean(-1).mean().item()
+                last_reward_u = - torch.linalg.norm(eval_rollout["next", "u"][..., -1, :], dim=-1).mean().item()
+                # Compute mean and std of actuation
+                mean_actuation = torch.linalg.norm(eval_rollout["action"], dim=-1).mean(-1).mean().item()
+                std_actuation = torch.linalg.norm(eval_rollout["action"], dim=-1).std(-1).mean().item()
+
                 metrics_to_log["eval/reward"] = eval_reward
+                metrics_to_log["eval/reward_solution"] = eval_reward_u
                 metrics_to_log["eval/last_reward"] = last_reward
+                metrics_to_log["eval/last_reward_solution"] = last_reward_u
+                metrics_to_log["eval/mean_actuation"] = mean_actuation
+                metrics_to_log["eval/std_actuation"] = std_actuation
                 metrics_to_log["eval/time"] = eval_time
 
         if LOGGING_TO_CONSOLE:
@@ -206,11 +218,10 @@ def main(cfg: "DictConfig"):  # noqa: F821
     collector.shutdown()
 
     # Save logs to file
-    for key, vals in logs.items():
-        logs[key] = np.array(vals)
-    with open("logs.pkl", "wb") as f:
+    filename = f'logs_NU00{100*cfg.env.nu:.0f}_A{cfg.env.num_actuators}_S{cfg.env.num_sensors}.pkl'
+    with open(filename, "wb") as f:
         pickle.dump(logs, f)
-    print('Saved logs to logs.pkl.')
+    print('Saved logs to ' + filename)
 
     end_time = time.time()
     execution_time = end_time - start_time
