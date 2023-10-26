@@ -14,7 +14,8 @@ from torchrl.data import TensorDictPrioritizedReplayBuffer, TensorDictReplayBuff
 from torchrl.data.replay_buffers.storages import LazyMemmapStorage
 from torchrl.envs import Compose, DoubleToFloat, EnvCreator, ParallelEnv, TransformedEnv
 from torchrl.envs.libs.gym import GymEnv, set_gym_backend
-from torchrl.envs.transforms import InitTracker, RewardSum, StepCounter, FiniteTensorDictCheck, ObservationNorm
+from torchrl.envs.transforms import InitTracker, RewardSum, StepCounter
+from torchrl.envs.transforms import FiniteTensorDictCheck, ObservationNorm, FrameSkipTransform
 from torchrl.envs.utils import ExplorationType, set_exploration_type
 from torchrl.modules import MLP, ProbabilisticActor, ValueOperator
 from torchrl.modules.distributions import TanhNormal
@@ -34,10 +35,11 @@ from solver.KS_environment import KSenv
 def make_ks_env(cfg):
     transforms = Compose(
         InitTracker(),
-        StepCounter(cfg.env.max_episode_steps),
+        StepCounter(cfg.env.max_episode_steps // cfg.env.frame_skip),
         # DoubleToFloat(),
         RewardSum(),
         FiniteTensorDictCheck(),
+        #FrameSkipTransform(frame_skip=cfg.env.frame_skip),
         # ObservationNorm(in_keys=["observation"], loc=0., scale=10.),
     )
     actuator_locs = torch.tensor(np.linspace(start=0.0, stop=2*torch.pi, num=cfg.env.num_actuators, endpoint=False))
@@ -97,9 +99,9 @@ def make_collector(cfg, train_env, actor_model_explore):
     collector = SyncDataCollector(
         train_env,
         actor_model_explore,
-        init_random_frames=cfg.collector.init_random_frames,
-        frames_per_batch=cfg.collector.frames_per_batch,
-        total_frames=cfg.collector.total_frames,
+        init_random_frames=cfg.collector.init_random_frames // cfg.env.frame_skip,
+        frames_per_batch=cfg.collector.frames_per_batch // cfg.env.frame_skip,
+        total_frames=cfg.collector.total_frames // cfg.env.frame_skip,
         device=cfg.collector.collector_device,
     )
     collector.set_seed(cfg.env.seed)
@@ -107,38 +109,43 @@ def make_collector(cfg, train_env, actor_model_explore):
 
 
 def make_replay_buffer(
-        batch_size,
-        prb=False,
-        buffer_size=1_000_000,
-        buffer_scratch_dir="/tmp/",
-        device="cpu",
-        prefetch=3,
+    batch_size,
+    prb=False,
+    buffer_size=1000000,
+    buffer_scratch_dir=None,
+    device="cpu",
+    prefetch=3,
 ):
-    if prb:
-        replay_buffer = TensorDictPrioritizedReplayBuffer(
-            alpha=0.7,
-            beta=0.5,
-            pin_memory=False,
-            prefetch=prefetch,
-            storage=LazyMemmapStorage(
-                buffer_size,
-                scratch_dir=buffer_scratch_dir,
-                device=device,
-            ),
-            batch_size=batch_size,
-        )
-    else:
-        replay_buffer = TensorDictReplayBuffer(
-            pin_memory=False,
-            prefetch=prefetch,
-            storage=LazyMemmapStorage(
-                buffer_size,
-                scratch_dir=buffer_scratch_dir,
-                device=device,
-            ),
-            batch_size=batch_size,
-        )
-    return replay_buffer
+    with (
+        tempfile.TemporaryDirectory()
+        if buffer_scratch_dir is None
+        else nullcontext(buffer_scratch_dir)
+    ) as scratch_dir:
+        if prb:
+            replay_buffer = TensorDictPrioritizedReplayBuffer(
+                alpha=0.7,
+                beta=0.5,
+                pin_memory=False,
+                prefetch=prefetch,
+                storage=LazyMemmapStorage(
+                    buffer_size,
+                    scratch_dir=scratch_dir,
+                    device=device,
+                ),
+                batch_size=batch_size,
+            )
+        else:
+            replay_buffer = TensorDictReplayBuffer(
+                pin_memory=False,
+                prefetch=prefetch,
+                storage=LazyMemmapStorage(
+                    buffer_size,
+                    scratch_dir=scratch_dir,
+                    device=device,
+                ),
+                batch_size=batch_size,
+            )
+        return replay_buffer
 
 
 # ====================================================================
