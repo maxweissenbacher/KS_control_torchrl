@@ -51,7 +51,12 @@ def make_ks_env(cfg):
                     nu=float(cfg.env.nu),
                     actuator_locs=actuator_locs,
                     sensor_locs=sensor_locs,
-                    burn_in=int(cfg.env.burnin)
+                    burn_in=int(cfg.env.burnin),
+                    frame_skip=int(cfg.env.frame_skip),
+                    soft_action=bool(cfg.env.soft_action),
+                    autoreg_weight=float(cfg.env.autoreg_action),
+                    actuator_loss_weight=float(cfg.optim.actuator_loss_weight),
+                    device=cfg.collector.collector_device,
                 )
             )
         ),
@@ -67,7 +72,12 @@ def make_ks_env(cfg):
                     nu=float(cfg.env.nu),
                     actuator_locs=actuator_locs,
                     sensor_locs=sensor_locs,
-                    burn_in=int(cfg.env.burnin)
+                    burn_in=int(cfg.env.burnin),
+                    frame_skip=int(cfg.env.frame_skip),
+                    soft_action=bool(cfg.env.soft_action),
+                    autoreg_weight=float(cfg.env.autoreg_action),
+                    actuator_loss_weight=float(cfg.optim.actuator_loss_weight),
+                    device=cfg.collector.collector_device,
                 )
             )
         ),

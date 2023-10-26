@@ -10,6 +10,7 @@ import torch
 import torch.cuda
 import tqdm
 import numpy as np
+import yaml
 from tensordict import TensorDict
 from torchrl.envs.utils import ExplorationType, set_exploration_type
 
@@ -30,12 +31,13 @@ def main(cfg: "DictConfig"):  # noqa: F821
     device = torch.device(cfg.network.device)
 
     LOGGING_TO_CONSOLE = True
-
     print('here')
 
     # Create logger
     exp_name = generate_exp_name("TQC", cfg.env.exp_name)
     logs = {}
+
+    print('Starting experiment ' + exp_name)
 
     torch.manual_seed(cfg.env.seed)
     np.random.seed(cfg.env.seed)
@@ -58,8 +60,8 @@ def main(cfg: "DictConfig"):  # noqa: F821
     replay_buffer = make_replay_buffer(
         batch_size=cfg.optim.batch_size,
         prb=cfg.replay_buffer.prb,
-        buffer_size=cfg.replay_buffer.size,
-        buffer_scratch_dir="/tmp/" + cfg.replay_buffer.scratch_dir,
+        buffer_size=cfg.replay_buffer.size // cfg.env.frame_skip,
+        buffer_scratch_dir=cfg.replay_buffer.scratch_dir,
         device=device,
     )
 
@@ -75,20 +77,20 @@ def main(cfg: "DictConfig"):  # noqa: F821
     # Main loop
     start_time = time.time()
     collected_frames = 0
-    pbar = tqdm.tqdm(total=cfg.collector.total_frames)
+    pbar = tqdm.tqdm(total=cfg.collector.total_frames // cfg.env.frame_skip)
 
-    init_random_frames = cfg.collector.init_random_frames
+    init_random_frames = cfg.collector.init_random_frames // cfg.env.frame_skip
     num_updates = int(
         cfg.collector.env_per_collector
         * cfg.collector.frames_per_batch
         * cfg.optim.utd_ratio
     )
     prb = cfg.replay_buffer.prb
-    eval_iter = cfg.logger.eval_iter
-    frames_per_batch = cfg.collector.frames_per_batch
-    eval_rollout_steps = cfg.env.max_episode_steps
+    eval_iter = cfg.logger.eval_iter // cfg.env.frame_skip
+    frames_per_batch = cfg.collector.frames_per_batch // cfg.env.frame_skip
+    eval_rollout_steps = cfg.env.max_episode_steps // cfg.env.frame_skip
 
-    print('stop here before commencing training loop')
+    #print('stop here before commencing training loop')
 
     sampling_start = time.time()
     for i, tensordict in enumerate(collector):
@@ -109,7 +111,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
         training_start = time.time()
         if collected_frames >= init_random_frames:
 
-            #print(f'stop at iteration {i} training commences')
+            #print(f'\n stop at iteration {i} training commences \n')
 
             losses = TensorDict(
                 {},
@@ -165,13 +167,15 @@ def main(cfg: "DictConfig"):  # noqa: F821
         )
         episode_rewards = tensordict["next", "episode_reward"][episode_end]
 
+        #print('stop here')
+
         # Logging
         metrics_to_log = {}
         if len(episode_rewards) > 0:
             episode_length = tensordict["next", "step_count"][episode_end]
-            metrics_to_log["train/reward"] = episode_rewards.mean().item() / episode_length
-            metrics_to_log["train/last_reward"] = tensordict["next", "reward"][episode_end]
-            metrics_to_log["train/episode_length"] = episode_length.sum().item() / len(episode_length)
+            metrics_to_log["train/reward"] = episode_rewards.mean().item() / episode_length.item()
+            metrics_to_log["train/last_reward"] = tensordict["next", "reward"][episode_end].item()
+            metrics_to_log["train/episode_length"] = cfg.env.frame_skip * episode_length.sum().item() / len(episode_length)
         if collected_frames >= init_random_frames:
             metrics_to_log["train/q_loss"] = losses.get("loss_critic").mean().item()
             metrics_to_log["train/actor_loss"] = losses.get("loss_actor").mean().item()

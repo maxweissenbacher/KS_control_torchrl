@@ -4,8 +4,11 @@ env:
   num_actuators: 10
   num_sensors: 64
   burnin: 0
-  exp_name: KS_TQC
+  exp_name: KS
   max_episode_steps: 1_000
+  frame_skip: 1  # Sticky actions
+  soft_action: True  # Interpolate the actions over frame_skip frames
+  autoreg_action: 0.1  # Autoregressive action hyperparameter
   seed: 2253461632  # keep fixed for now
 
 # collector
@@ -21,11 +24,12 @@ collector:
 replay_buffer:
   size: 1_000_000
   prb: False # use prioritized experience replay; the original TQC paper does not prioritized replay
-  scratch_dir: ${env.exp_name}_${env.seed}
+  scratch_dir:
 
 # optim
 optim:
   utd_ratio: 1.0
+  actuator_loss_weight: 0.0  # Weight hyperparameter of actuation size in reward function
   gamma: 0.99
   lr: 3.0e-4
   weight_decay: 0.0
@@ -51,3 +55,7 @@ logger:
   backend: wandb
   mode: online
   eval_iter: 25_000
+
+# Disable output subdirectory
+hydra:
+  output_subdir: config
