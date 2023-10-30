@@ -197,8 +197,8 @@ def lstm_tqc_actor(cfg, in_keys, out_keys, action_spec):
     lstm_key = "embed"
 
     feature = TensorDictModule(
-        MLP(num_cells=[128, 64],
-            out_features=32,
+        MLP(num_cells=cfg.network.lstm.feature_hidden_sizes,
+            out_features=cfg.network.lstm.feature_out_size,
             activation_class=get_activation(cfg)),
         in_keys=in_keys,
         out_keys=[lstm_key],
@@ -206,14 +206,14 @@ def lstm_tqc_actor(cfg, in_keys, out_keys, action_spec):
 
     lstm = LSTMModule(
         input_size=feature.module[-1].out_features,
-        hidden_size=128,
+        hidden_size=cfg.network.lstm.hidden_size,
         device=cfg.network.device,
         in_key=lstm_key,
         out_key=lstm_key,
     )
 
     final_net = MLP(
-        num_cells=[64],
+        num_cells=[cfg.network.lstm.hidden_size // 2],
         out_features=2 * action_spec.shape[-1],
         activation_class=get_activation(cfg)
     )
@@ -245,9 +245,11 @@ def make_tqc_agent(cfg, train_env, eval_env, device):
     if train_env.batch_size:
         action_spec = action_spec[(0,) * len(train_env.batch_size)]
 
-    # actor_net = basic_tqc_actor(cfg, in_keys=in_keys_actor, out_keys=out_keys_actor, action_spec=action_spec)
-
-    actor_net = lstm_tqc_actor(cfg, in_keys=in_keys_actor, out_keys=out_keys_actor, action_spec=action_spec)
+    actor_net = None
+    if cfg.network.architecture == 'base':
+        actor_net = basic_tqc_actor(cfg, in_keys=in_keys_actor, out_keys=out_keys_actor, action_spec=action_spec)
+    elif cfg.network.architecture == 'lstm':
+        actor_net = lstm_tqc_actor(cfg, in_keys=in_keys_actor, out_keys=out_keys_actor, action_spec=action_spec)
 
     actor_extractor = TensorDictModule(
         NormalParamExtractor(
