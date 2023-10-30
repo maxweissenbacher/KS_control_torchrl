@@ -8,7 +8,7 @@ import tempfile
 from contextlib import nullcontext
 import torch
 import numpy as np
-from tensordict.nn import InteractionType, TensorDictModule
+from tensordict.nn import InteractionType, TensorDictModule, TensorDictSequential
 from tensordict.nn.distributions import NormalParamExtractor
 from torch import nn, optim
 from torchrl.collectors import SyncDataCollector
@@ -189,42 +189,36 @@ def make_tqc_agent(cfg, train_env, eval_env, device):
     action_spec = train_env.action_spec
     if train_env.batch_size:
         action_spec = action_spec[(0,) * len(train_env.batch_size)]
-    actor_net_kwargs = {
-        "num_cells": cfg.network.actor_hidden_sizes,
-        "out_features": 2 * action_spec.shape[-1],
-        "activation_class": get_activation(cfg),
-    }
 
-    actor_net = MLP(**actor_net_kwargs)
-
-    dist_class = TanhNormal
-    dist_kwargs = {
-        "min": action_spec.space.low,
-        "max": action_spec.space.high,
-        "tanh_loc": False,  # can be omitted since this is default value
-    }
-
-    actor_extractor = NormalParamExtractor(
-        scale_mapping=f"biased_softplus_{cfg.network.default_policy_scale}",
-        scale_lb=cfg.network.scale_lb,
+    actor_net = TensorDictModule(
+        MLP(num_cells=cfg.network.actor_hidden_sizes,
+            out_features=2 * action_spec.shape[-1],
+            activation_class=get_activation(cfg)),
+        in_keys=in_keys,
+        out_keys=["actor_net_out"],
     )
-    actor_net = nn.Sequential(actor_net, actor_extractor)
 
-    in_keys_actor = in_keys
-    actor_module = TensorDictModule(
-        actor_net,
-        in_keys=in_keys_actor,
-        out_keys=[
-            "loc",
-            "scale",
-        ],
+    actor_extractor = TensorDictModule(
+        NormalParamExtractor(
+            scale_mapping=f"biased_softplus_{cfg.network.default_policy_scale}",
+            scale_lb=cfg.network.scale_lb,
+        ),
+        in_keys=actor_net.out_keys,
+        out_keys=["loc", "scale"],
     )
+
+    actor_module = TensorDictSequential(actor_net, actor_extractor)
+
     actor = ProbabilisticActor(
         spec=action_spec,
         in_keys=["loc", "scale"],
         module=actor_module,
-        distribution_class=dist_class,
-        distribution_kwargs=dist_kwargs,
+        distribution_class=TanhNormal,
+        distribution_kwargs={
+            "min": action_spec.space.low,
+            "max": action_spec.space.high,
+            "tanh_loc": False,  # can be omitted since this is default value
+        },
         default_interaction_type=InteractionType.RANDOM,
         return_log_prob=True,
     )
