@@ -2,15 +2,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pickle
 import yaml
+import pathlib
 
-filepath = "run_logs_from_hpc/24_10_7/"
 
-with open(filepath + "logs.pkl", "rb") as f:
-    logs = pickle.load(f)
+#filepath = "run_logs_from_hpc/26_10_1/"
+filepath = "ablation_study/studies/study_nu008_a10/13-17-45/"
+
+path = pathlib.Path(filepath)
+for item in path.rglob("*.pkl"):
+    with open(item, "rb") as f:
+        logs = pickle.load(f)
 print('Loaded logs.')
 
-with open(filepath + "config.yaml", "rb") as f:
-    config = yaml.safe_load(f)
+for item in path.rglob("*config.yaml"):
+    with open(item, "rb") as f:
+        config = yaml.safe_load(f)
 print('Loaded config.')
 
 print('here')
@@ -87,10 +93,12 @@ title += f"sensors={config['env']['num_sensors']} | "
 title += f"burnin={config['env']['burnin']} | "
 title += f"frameskip={config['env'].get('frame_skip', 1)} | "
 title += f"softaction={config['env'].get('soft_action', False)} | "
-title += f"action_loss={config['optim'].get('actuator_loss_weight', 0.0)}"
+title += f"action_loss={config['optim'].get('actuator_loss_weight', 0.0)} | "
+title += f"autoreg_action={config['env'].get('autoreg_action', 0.0)}"
 
 fig.suptitle(title)
 fig.set_size_inches(15, 10)
 
 # plt.show()
 plt.savefig(filepath + 'plots.png', dpi=300, format='png')
+
