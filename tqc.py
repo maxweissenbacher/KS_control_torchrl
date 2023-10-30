@@ -225,7 +225,8 @@ def main(cfg: "DictConfig"):  # noqa: F821
     collector.shutdown()
 
     # Save logs to file
-    filename = f'logs_NU00{100*cfg.env.nu:.0f}_A{cfg.env.num_actuators}_S{cfg.env.num_sensors}.pkl'
+    desc_string = '_' + cfg.logger.filename if cfg.logger.filename is not None else ''
+    filename = 'logs' + desc_string + f'_NU00{100*cfg.env.nu:.0f}_A{cfg.env.num_actuators}_S{cfg.env.num_sensors}.pkl'
     with open(filename, "wb") as f:
         pickle.dump(logs, f)
     print('Saved logs to ' + filename)
