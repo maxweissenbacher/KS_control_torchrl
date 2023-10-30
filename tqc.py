@@ -50,6 +50,9 @@ def main(cfg: "DictConfig"):  # noqa: F821
 
     print('stop here')
 
+    # TO-DO: Add optional tensordict primer
+    #train_env.append_transform(lstm.make_tensordict_primer())
+
     # Create SAC loss
     loss_module, target_net_updater = make_loss_module(cfg, model)
 

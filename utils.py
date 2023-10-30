@@ -19,7 +19,7 @@ from torchrl.envs.libs.gym import GymEnv, set_gym_backend
 from torchrl.envs.transforms import InitTracker, RewardSum, StepCounter
 from torchrl.envs.transforms import FiniteTensorDictCheck, ObservationNorm, FrameSkipTransform
 from torchrl.envs.utils import ExplorationType, set_exploration_type
-from torchrl.modules import MLP, ProbabilisticActor, ValueOperator
+from torchrl.modules import MLP, ProbabilisticActor, ValueOperator, LSTMModule
 from torchrl.modules.distributions import TanhNormal
 from torchrl.objectives import SoftUpdate
 from torchrl.data import CompositeSpec, TensorSpec
@@ -182,15 +182,53 @@ class tqc_critic_net(nn.Module):
 # -------------------
 
 
-def basic_tqc_actor(cfg, in_keys, action_spec):
-    actor_net = TensorDictModule(
+def basic_tqc_actor(cfg, in_keys, out_keys, action_spec):
+    actor_module = TensorDictModule(
         MLP(num_cells=cfg.network.actor_hidden_sizes,
             out_features=2 * action_spec.shape[-1],
             activation_class=get_activation(cfg)),
         in_keys=in_keys,
-        out_keys=["actor_net_out"],
+        out_keys=out_keys,
     )
-    return actor_net
+    return actor_module
+
+
+def lstm_tqc_actor(cfg, in_keys, out_keys, action_spec):
+    lstm_key = "embed"
+
+    feature = TensorDictModule(
+        MLP(num_cells=[128, 64],
+            out_features=32,
+            activation_class=get_activation(cfg)),
+        in_keys=in_keys,
+        out_keys=[lstm_key],
+    )
+
+    lstm = LSTMModule(
+        input_size=feature.module[-1].out_features,
+        hidden_size=128,
+        device=cfg.network.device,
+        in_key=lstm_key,
+        out_key=lstm_key,
+    )
+
+    final_net = MLP(
+        num_cells=[64],
+        out_features=2 * action_spec.shape[-1],
+        activation_class=get_activation(cfg)
+    )
+    final_net[-1].bias.data.fill_(0.0)
+    final_mlp = TensorDictModule(
+        final_net,
+        in_keys=lstm_key,
+        out_keys=out_keys,
+    )
+
+    actor_module = TensorDictSequential(feature, lstm, final_mlp)
+
+    # Look at the cuDNN optimisation options (for computing loss)
+
+    return actor_module
 
 
 # ====================================================================
@@ -201,19 +239,22 @@ def basic_tqc_actor(cfg, in_keys, action_spec):
 def make_tqc_agent(cfg, train_env, eval_env, device):
     """Make TQC agent."""
     # Define Actor Network
-    in_keys = ["observation"]
+    in_keys_actor = ["observation"]
+    out_keys_actor = ["actor_net_out"]
     action_spec = train_env.action_spec
     if train_env.batch_size:
         action_spec = action_spec[(0,) * len(train_env.batch_size)]
 
-    actor_net = basic_tqc_actor(cfg, in_keys, action_spec)
+    # actor_net = basic_tqc_actor(cfg, in_keys=in_keys_actor, out_keys=out_keys_actor, action_spec=action_spec)
+
+    actor_net = lstm_tqc_actor(cfg, in_keys=in_keys_actor, out_keys=out_keys_actor, action_spec=action_spec)
 
     actor_extractor = TensorDictModule(
         NormalParamExtractor(
             scale_mapping=f"biased_softplus_{cfg.network.default_policy_scale}",
             scale_lb=cfg.network.scale_lb,
         ),
-        in_keys=actor_net.out_keys,
+        in_keys=out_keys_actor,
         out_keys=["loc", "scale"],
     )
 
@@ -236,7 +277,7 @@ def make_tqc_agent(cfg, train_env, eval_env, device):
     # Define Critic Network
     qvalue_net = tqc_critic_net(cfg)
     qvalue = ValueOperator(
-        in_keys=["action"] + in_keys,
+        in_keys=["action"] + in_keys_actor,
         module=qvalue_net,
     )
 
