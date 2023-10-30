@@ -5,12 +5,12 @@ import yaml
 import pathlib
 
 
-def extract_logs(directory):
+def extract_logs(run_path):
     """
     Assuming that one run is contained in a directory, which contains the log and config files,
     this function returns the log and config file. Depends on the structure of the directory.
     """
-    path = pathlib.Path(directory)
+    path = pathlib.Path(run_path)
     # Extract the logs
     for item in path.rglob("*.pkl"):
         with open(item, "rb") as f:
@@ -26,32 +26,51 @@ def extract_logs(directory):
     return logs, config
 
 
-def final_reward(logs):
-    """
-    Given a logs file, extract a mean over the last 5 evaluations.
-    """
-    # Compute the mean of the last 5 evaluation rewards
-    return np.mean(logs['eval/reward'][-5:])
-
-
-if __name__ == '__main__':
+def study_rewards(study_path):
     rewards = []
     num_sensors = []
-
-    study_path = pathlib.Path('studies/study_nu005_with_frameskip')
+    config = None
     for directory in study_path.iterdir():
         if directory.is_dir():
             logs, config = extract_logs(directory)
             num_sensors.append(config['env']['num_sensors'])
-            rewards.append(final_reward(logs))
+            rewards.append(np.mean(logs['eval/reward'][-5:]))
 
-    # Plot the ablation curve
+    print('Study generated in ' + str(study_path))
+
     arr = np.array([num_sensors, rewards])
     arr_sorted = np.sort(arr.T, axis=0)
 
-    plt.plot(arr_sorted[:,0], arr_sorted[:,1], '--gp')
+    return arr_sorted, config
+
+
+if __name__ == '__main__':
+    sup_study_path = pathlib.Path('studies/comparing_nu_actuators')
+    fig = plt.figure()
+    ax = plt.subplot(111)
+    for directory in sup_study_path.iterdir():
+        if directory.is_dir():
+            arr_sorted, config = study_rewards(directory)
+
+            label = f"nu={config['env']['nu']} | a={config['env']['num_actuators']}"
+
+            ax.plot(arr_sorted[:,0], arr_sorted[:,1], '--p', label=label)
+
+    # Shrink current axis's height by 10% on the bottom
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0 + box.height * 0.1,
+                     box.width, box.height * 0.9])
+
+    # Put a legend below current axis
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.05),
+              fancybox=True, shadow=True, ncol=5, fontsize=5)
+
+    ax.set_title('Comparison of different ablation studies')
     plt.xlabel('Number of sensors')
     plt.ylabel('Final evaluation reward')
+    #plt.legend()
     #plt.yscale('symlog')
-    plt.show()
+
+    # plt.show()
+    plt.savefig(str(sup_study_path) + '/plot.png', dpi=300, format='png')
 
