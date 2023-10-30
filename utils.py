@@ -156,7 +156,7 @@ def make_replay_buffer(
 # -----------------------------
 
 
-class TQC_Critic(nn.Module):
+class tqc_critic_net(nn.Module):
     def __init__(self, cfg):
         super().__init__()
         self.nets = []
@@ -178,6 +178,22 @@ class TQC_Critic(nn.Module):
 
 
 # ====================================================================
+# Actor architectures
+# -------------------
+
+
+def basic_tqc_actor(cfg, in_keys, action_spec):
+    actor_net = TensorDictModule(
+        MLP(num_cells=cfg.network.actor_hidden_sizes,
+            out_features=2 * action_spec.shape[-1],
+            activation_class=get_activation(cfg)),
+        in_keys=in_keys,
+        out_keys=["actor_net_out"],
+    )
+    return actor_net
+
+
+# ====================================================================
 # Model
 # -----
 
@@ -190,13 +206,7 @@ def make_tqc_agent(cfg, train_env, eval_env, device):
     if train_env.batch_size:
         action_spec = action_spec[(0,) * len(train_env.batch_size)]
 
-    actor_net = TensorDictModule(
-        MLP(num_cells=cfg.network.actor_hidden_sizes,
-            out_features=2 * action_spec.shape[-1],
-            activation_class=get_activation(cfg)),
-        in_keys=in_keys,
-        out_keys=["actor_net_out"],
-    )
+    actor_net = basic_tqc_actor(cfg, in_keys, action_spec)
 
     actor_extractor = TensorDictModule(
         NormalParamExtractor(
@@ -224,8 +234,7 @@ def make_tqc_agent(cfg, train_env, eval_env, device):
     )
 
     # Define Critic Network
-    qvalue_net = TQC_Critic(cfg)
-
+    qvalue_net = tqc_critic_net(cfg)
     qvalue = ValueOperator(
         in_keys=["action"] + in_keys,
         module=qvalue_net,
