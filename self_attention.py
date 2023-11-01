@@ -84,11 +84,14 @@ class SelfAttentionLayer(Module):
 
 
 class SelfAttentionMemoryActor(TensorDictModuleBase):
-    def __init__(self):
+    def __init__(self, action_spec):
         super().__init__()
-        self.in_keys = ['observation', 'memory']
+        self.in_keys = ["observation", "memory"]
+        self.out_keys = ["actor_net_out", ("next", "memory")]
+
         self.num_memories = 2
         self.size_memory = 5
+        self.action_spec = action_spec
 
     def forward(self, tensordict: TensorDictBase):
         # we want to get an error if the value input is missing, but not the hidden states
@@ -111,6 +114,7 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
 
         #memory = torch.ones([*batch_size, self.num_memories, self.size_memory])
 
+        # Memory retrieval
         if is_init.any() and memory is not None:
             memory[is_init] = 0. # reset memory to zero - should be random instead
 
@@ -118,13 +122,22 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
         if memory is None:
             memory = torch.zeros([*batch_size, self.num_memories, self.size_memory])
 
-        # Do self attention here to retrieve a SUGGESTED memory update
+        # Compute the "action" (whatever is processed into the action) for this step
+        # This uses the current observation and memory state
+        action_out = torch.zeros([*batch_size, 2 * self.action_spec.shape[-1]])
 
-        # Update the memory here
-        # For instance, pass the suggested update as the "C" layer to an LSTM
+        # Do self attention to compute a PROPOSED memory update
+        # Then conduct the ACTUAL memory update (i.e. autoregression, LSTM where input is proposed update and
+        # output is real update, the special LSTM architecture from the Deepmind paper, ...)
+
+        next_memory = memory
+
+        tensordict.set(self.out_keys[0], action_out)
+        tensordict.set(self.out_keys[1], next_memory)
 
         ic(memory)
 
+        return tensordict
 
 @hydra.main(version_base="1.1", config_path="", config_name="config")
 def main(cfg):
@@ -146,7 +159,7 @@ def main(cfg):
 
     ic(rollout)
 
-    actor = SelfAttentionMemoryActor()
+    actor = SelfAttentionMemoryActor(eval_env.action_spec)
 
     actor(rollout)
 
