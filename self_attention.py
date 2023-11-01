@@ -4,9 +4,6 @@ from torch.nn import Module, Linear, Softmax
 from icecream import ic
 
 
-# M ... num_memories x size_memory
-
-
 class MapToQKV(Module):
     def __init__(self, size_memory):
         super().__init__()
@@ -48,7 +45,7 @@ class MultiHeadAttention(Module):
         q, k, v = self.qkv(x)
         q, k, v = self.split(q), self.split(k), self.split(v)
         out = self.attention(q, k, v)
-        out = self.concat(out)
+        out = self.concatenate(out)
         out = self.w_concat(out)
         return out
 
@@ -63,12 +60,22 @@ class MultiHeadAttention(Module):
         x = x.transpose(-2, -3)
         return x
 
-    def concat(self, x):
+    @staticmethod
+    def concatenate(x):
         # d_tensor is size_memory / nr_heads
         *batch_size, n_head, num_memories, d_tensor = x.size()
         size_memory = n_head * d_tensor
         x = x.transpose(-2, -3).contiguous().view(*batch_size, num_memories, size_memory)
         return x
+
+
+class SelfAttentionLayer(Module):
+    def __init__(self, size_memory, n_head, device):
+        super(SelfAttentionLayer, self).__init__()
+        self.multi_head_attention = MultiHeadAttention(size_memory, n_head, device)
+
+    def forward(self, x):
+        return self.multi_head_attention(x)
 
 
 if __name__ =='__main__':
@@ -77,7 +84,9 @@ if __name__ =='__main__':
     size_memory = 50
     num_memories = 20
 
-    W = torch.zeros([100, 100, num_memories, size_memory])
+    # M is the memory
+    # M ... batch_size x num_memories x size_memory
+    M = torch.zeros([100, 100, num_memories, size_memory])
 
-    MultiHeadAttention(size_memory, n_heads, 'cpu')(W)
+    MultiHeadAttention(size_memory, n_heads, 'cpu')(M)
 
