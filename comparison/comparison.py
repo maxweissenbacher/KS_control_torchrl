@@ -11,9 +11,6 @@ if __name__ == '__main__':
             logs, config = extract_logs(directory)
             rewards.append(np.mean(logs['eval/reward'][-5:]))
 
-    print(config['env'])
-    print(rewards)
-
     # to add more plots, just pass a list of the arrays/lists to use in the boxplots
     all_data = [rewards, rewards]
     labels = ['baseline', 'lstm']
