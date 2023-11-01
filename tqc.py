@@ -80,7 +80,8 @@ def main(cfg: "DictConfig"):  # noqa: F821
     # Main loop
     start_time = time.time()
     collected_frames = 0
-    pbar = tqdm.tqdm(total=cfg.collector.total_frames // cfg.env.frame_skip)
+    #pbar = tqdm.tqdm(total=cfg.collector.total_frames // cfg.env.frame_skip)
+    num_console_updates = 50
 
     init_random_frames = cfg.collector.init_random_frames // cfg.env.frame_skip
     num_updates = int(
@@ -102,7 +103,9 @@ def main(cfg: "DictConfig"):  # noqa: F821
         # Update weights of the inference policy
         collector.update_policy_weights_()
 
-        pbar.update(tensordict.numel())
+        #pbar.update(tensordict.numel())
+        if i % (cfg.collector.total_frames // (cfg.env.frame_skip * num_console_updates)) == 0:
+            print(f'Iteration {i}/{cfg.collector.total_frames // cfg.env.frame_skip}')
 
         tensordict = tensordict.reshape(-1)
         current_frames = tensordict.numel()
