@@ -46,21 +46,9 @@ class MultiHeadAttention(Module):
 
     def forward(self, x):
         q, k, v = self.qkv(x)
-
-        ic(q.shape)
-
         q, k, v = self.split(q), self.split(k), self.split(v)
-
-        ic(q.shape)
-
         out = self.attention(q, k, v)
-
-        ic(out.shape)
-
         out = self.concat(out)
-
-        ic(out.shape)
-
         out = self.w_concat(out)
         return out
 
