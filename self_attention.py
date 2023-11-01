@@ -1,7 +1,12 @@
 import torch
 import math
 from torch.nn import Module, Linear, Softmax
+from tensordict.nn import InteractionType, TensorDictModule, TensorDictSequential, TensorDictModuleBase
+from tensordict.tensordict import TensorDict, TensorDictBase
+from tensordict.tensordict import NO_DEFAULT
 from icecream import ic
+from utils import make_ks_env
+import hydra
 
 
 class MapToQKV(Module):
@@ -78,8 +83,51 @@ class SelfAttentionLayer(Module):
         return self.multi_head_attention(x)
 
 
-if __name__ =='__main__':
+class SelfAttentionMemoryActor(TensorDictModuleBase):
+    def __init__(self):
+        super().__init__()
+        self.in_keys = ['observation', 'memory']
+        self.num_memories = 2
+        self.size_memory = 5
 
+    def forward(self, tensordict: TensorDictBase):
+        # we want to get an error if the value input is missing, but not the hidden states
+        defaults = [NO_DEFAULT, None]
+
+        is_init = tensordict.get("is_init").squeeze(-1)
+
+        observation, memory = (
+            tensordict.get(key, default)
+            for key, default in zip(self.in_keys, defaults)
+        )
+
+        ic(is_init)
+        ic(is_init.shape)
+        ic(memory)
+        ic(observation.shape)
+
+        batch_size = is_init.shape
+        ic(batch_size)
+
+        #memory = torch.ones([*batch_size, self.num_memories, self.size_memory])
+
+        if is_init.any() and memory is not None:
+            memory[is_init] = 0. # reset memory to zero - should be random instead
+
+        # reset memory to zero - should be random instead
+        if memory is None:
+            memory = torch.zeros([*batch_size, self.num_memories, self.size_memory])
+
+        # Do self attention here to retrieve a SUGGESTED memory update
+
+        # Update the memory here
+        # For instance, pass the suggested update as the "C" layer to an LSTM
+
+        ic(memory)
+
+
+@hydra.main(version_base="1.1", config_path="", config_name="config")
+def main(cfg):
     n_heads = 5
     size_memory = 50
     num_memories = 20
@@ -90,3 +138,18 @@ if __name__ =='__main__':
 
     MultiHeadAttention(size_memory, n_heads, 'cpu')(M)
 
+    train_env, eval_env = make_ks_env(cfg)
+
+    # Doing a simple rollout with zero actions
+    td = eval_env.reset()
+    rollout = eval_env.rollout(max_steps=3)
+
+    ic(rollout)
+
+    actor = SelfAttentionMemoryActor()
+
+    actor(rollout)
+
+
+if __name__ == '__main__':
+    main()
