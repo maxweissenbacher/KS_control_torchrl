@@ -97,6 +97,7 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
             n_heads,
             action_spec,
             out_key,
+            device,
     ):
         super().__init__()
         self.memory_key = "memory"
@@ -108,7 +109,7 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
         self.action_spec = action_spec
         self.n_heads = n_heads
         self.memory_reset_std = 0.1
-        self.device = 'cpu'
+        self.device = device
 
         self.action_mlp = MLP(
             num_cells=[256],
@@ -195,6 +196,7 @@ def main(cfg):
         n_heads=5,
         action_spec=eval_env.action_spec,
         out_key="actor_net_out",
+        device='cpu'
     )
 
     actor(rollout)
