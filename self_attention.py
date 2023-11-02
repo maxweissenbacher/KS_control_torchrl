@@ -1,9 +1,11 @@
 import torch
+import torch.nn as nn
 import math
 from torch.nn import Module, Linear, Softmax
 from tensordict.nn import InteractionType, TensorDictModule, TensorDictSequential, TensorDictModuleBase
 from tensordict.tensordict import TensorDict, TensorDictBase
 from tensordict.tensordict import NO_DEFAULT
+from torchrl.modules import MLP
 from icecream import ic
 from utils import make_ks_env
 import hydra
@@ -16,10 +18,14 @@ class MapToQKV(Module):
         self.k = Linear(size_memory, size_memory)
         self.v = Linear(size_memory, size_memory)
 
-    def forward(self, x):
-        q = self.q(x)
-        k = self.k(x)
-        v = self.v(x)
+    def forward(self, M, x):
+        """
+        M is assumed to be of shape batch_size x num_memories x size_memory
+        x is assumed to be of shape batch_size x size_memory
+        """
+        q = self.q(M)
+        k = self.k(torch.cat([M, torch.unsqueeze(x, dim=-2)], dim=-2))
+        v = self.v(torch.cat([M, torch.unsqueeze(x, dim=-2)], dim=-2))
         return q, k, v
 
 
@@ -46,8 +52,8 @@ class MultiHeadAttention(Module):
         self.qkv = MapToQKV(size_memory)
         self.w_concat = Linear(size_memory, size_memory, device=device)
 
-    def forward(self, x):
-        q, k, v = self.qkv(x)
+    def forward(self, M, x):
+        q, k, v = self.qkv(M, x)
         q, k, v = self.split(q), self.split(k), self.split(v)
         out = self.attention(q, k, v)
         out = self.concatenate(out)
@@ -147,9 +153,10 @@ def main(cfg):
 
     # M is the memory
     # M ... batch_size x num_memories x size_memory
-    M = torch.zeros([100, 100, num_memories, size_memory])
+    M = torch.zeros([*batchsize, num_memories, size_memory])
+    x = torch.ones([*batchsize, size_memory])
 
-    MultiHeadAttention(size_memory, n_heads, 'cpu')(M)
+    MultiHeadAttention(size_memory, n_heads, 'cpu')(M, x)
 
     train_env, eval_env = make_ks_env(cfg)
 
