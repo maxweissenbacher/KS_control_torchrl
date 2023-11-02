@@ -14,9 +14,9 @@ import hydra
 class MapToQKV(Module):
     def __init__(self, size_memory):
         super().__init__()
-        self.q = Linear(size_memory, size_memory)
-        self.k = Linear(size_memory, size_memory)
-        self.v = Linear(size_memory, size_memory)
+        self.q = Linear(size_memory, size_memory, bias=False)
+        self.k = Linear(size_memory, size_memory, bias=False)
+        self.v = Linear(size_memory, size_memory, bias=False)
 
     def forward(self, M, x):
         """
@@ -85,71 +85,94 @@ class SelfAttentionLayer(Module):
         super(SelfAttentionLayer, self).__init__()
         self.multi_head_attention = MultiHeadAttention(size_memory, n_head, device)
 
-    def forward(self, x):
-        return self.multi_head_attention(x)
+    def forward(self, M, x):
+        return self.multi_head_attention(M, x)
 
 
 class SelfAttentionMemoryActor(TensorDictModuleBase):
-    def __init__(self, action_spec):
+    def __init__(
+            self,
+            num_memories,
+            size_memory,
+            n_heads,
+            action_spec,
+            out_key,
+    ):
         super().__init__()
-        self.in_keys = ["observation", "memory"]
-        self.out_keys = ["actor_net_out", ("next", "memory")]
+        self.memory_key = "memory"
+        self.in_keys = ["observation", self.memory_key]
+        self.out_keys = [out_key, ("next", self.memory_key)]
 
-        self.num_memories = 2
-        self.size_memory = 5
+        self.num_memories = num_memories
+        self.size_memory = size_memory
         self.action_spec = action_spec
+        self.n_heads = n_heads
+        self.memory_reset_std = 0.1
+        self.device = 'cpu'
 
-    def forward(self, tensordict: TensorDictBase):
-        # we want to get an error if the value input is missing, but not the hidden states
-        defaults = [NO_DEFAULT, None]
+        self.action_mlp = MLP(
+            num_cells=[256],
+            out_features=2 * self.action_spec.shape[-1],
+            activation_class=nn.ReLU,
+            device=self.device
+        )
+        self.feature = MLP(
+            num_cells=[128, 128],
+            out_features=self.size_memory,
+            activation_class=nn.ReLU,
+            device=self.device
+        )
+        self.attention = SelfAttentionLayer(
+            size_memory=self.size_memory,
+            n_head=self.n_heads,
+            device=self.device,
+        )
 
+    def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
+        defaults = [NO_DEFAULT, None]  # We want to get an error if the value input is missing, but not the memory
         is_init = tensordict.get("is_init").squeeze(-1)
-
         observation, memory = (
             tensordict.get(key, default)
             for key, default in zip(self.in_keys, defaults)
         )
-
-        ic(is_init)
-        ic(is_init.shape)
-        ic(memory)
-        ic(observation.shape)
-
         batch_size = is_init.shape
-        ic(batch_size)
 
         #memory = torch.ones([*batch_size, self.num_memories, self.size_memory])
-
-        # Memory retrieval
+        # When env gets reset, need to reset memory
         if is_init.any() and memory is not None:
             memory[is_init] = 0. # reset memory to zero - should be random instead
-
-        # reset memory to zero - should be random instead
+        # Reset memory if not existent in tensordict
         if memory is None:
             memory = torch.zeros([*batch_size, self.num_memories, self.size_memory])
+            tensordict.set(self.memory_key, memory)  # probably not necessary to do this
 
         # Compute the "action" (whatever is processed into the action) for this step
         # This uses the current observation and memory state
-        action_out = torch.zeros([*batch_size, 2 * self.action_spec.shape[-1]])
+        action_out = self.action_mlp(memory)
 
-        # Do self attention to compute a PROPOSED memory update
-        # Then conduct the ACTUAL memory update (i.e. autoregression, LSTM where input is proposed update and
+        # Preprocess the observation into a vector of the right size for the memory
+        observation_feature = self.feature(observation)
+
+        # Compute proposed memory update
+        memory_update = self.attention(memory, observation_feature)
+
+        # Now conduct the ACTUAL memory update (i.e. autoregression, LSTM where input is proposed update and
         # output is real update, the special LSTM architecture from the Deepmind paper, ...)
+        # For now, simple autoregressive update for memory:
+        next_memory = 0.9 * memory + 0.1 * memory_update
 
-        next_memory = memory
-
+        # Write output to tensordict
         tensordict.set(self.out_keys[0], action_out)
         tensordict.set(self.out_keys[1], next_memory)
-
-        ic(memory)
 
         return tensordict
 
 @hydra.main(version_base="1.1", config_path="", config_name="config")
 def main(cfg):
     n_heads = 5
-    size_memory = 50
+    size_memory = 30
     num_memories = 20
+    batchsize = [100, 100]
 
     # M is the memory
     # M ... batch_size x num_memories x size_memory
@@ -166,9 +189,17 @@ def main(cfg):
 
     ic(rollout)
 
-    actor = SelfAttentionMemoryActor(eval_env.action_spec)
+    actor = SelfAttentionMemoryActor(
+        num_memories=10,
+        size_memory=25,
+        n_heads=5,
+        action_spec=eval_env.action_spec,
+        out_key="actor_net_out",
+    )
 
     actor(rollout)
+
+    ic(actor(rollout))
 
 
 if __name__ == '__main__':
