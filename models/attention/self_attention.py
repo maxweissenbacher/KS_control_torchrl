@@ -92,24 +92,25 @@ class SelfAttentionLayer(Module):
 class SelfAttentionMemoryActor(TensorDictModuleBase):
     def __init__(
             self,
-            num_memories,
-            size_memory,
-            n_heads,
+            cfg,
             action_spec,
             out_key,
-            device,
     ):
         super().__init__()
         self.memory_key = "memory"
         self.in_keys = ["observation", self.memory_key]
         self.out_keys = [out_key, ("next", self.memory_key)]
 
-        self.num_memories = num_memories
-        self.size_memory = size_memory
+        self.num_memories = cfg.network.attention.num_memories
+        self.size_memory = cfg.network.attention.size_memory
         self.action_spec = action_spec
-        self.n_heads = n_heads
+        self.batch_size = action_spec
+        self.n_heads = cfg.network.attention.n_heads
         self.memory_reset_std = 0.1
-        self.device = device
+        self.device = cfg.network.device
+
+
+        print('stop here')
 
         self.action_mlp = MLP(
             num_cells=[256],
@@ -117,6 +118,25 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
             activation_class=nn.ReLU,
             device=self.device
         )
+
+        class MemoryReader(Module):
+            def __init__(self, batch_size, action_spec, device):
+                super(MemoryReader, self).__init__()
+                self.mlp = MLP(
+                    num_cells=[256],
+                    out_features=2 * action_spec.shape[-1],
+                    activation_class=nn.ReLU,
+                    device=device
+                )
+                self.batch_size = batch_size
+
+            def forward(self, memory):
+                batch_size = memory.size()[:-2]
+                reshaped_memory = torch.reshape(memory, [*batch_size, -1]).contiguous()
+                return self.mlp(reshaped_memory)
+
+        self.memory_reader = MemoryReader([256], self.action_spec, self.device)
+
         self.feature = MLP(
             num_cells=[128, 128],
             out_features=self.size_memory,
@@ -130,26 +150,18 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
         )
 
     def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
-        defaults = [NO_DEFAULT, None]  # We want to get an error if the value input is missing, but not the memory
+        defaults = [NO_DEFAULT, NO_DEFAULT]  # We want to get an error if either memory or value are missing.
         is_init = tensordict.get("is_init").squeeze(-1)
         observation, memory = (
             tensordict.get(key, default)
             for key, default in zip(self.in_keys, defaults)
         )
-        batch_size = is_init.shape
-
-        #memory = torch.ones([*batch_size, self.num_memories, self.size_memory])
-        # When env gets reset, need to reset memory
-        if is_init.any() and memory is not None:
-            memory[is_init] = 0. # reset memory to zero - should be random instead
-        # Reset memory if not existent in tensordict
-        if memory is None:
-            memory = torch.zeros([*batch_size, self.num_memories, self.size_memory])
-            tensordict.set(self.memory_key, memory)  # probably not necessary to do this
+        batch_size = is_init.size()
 
         # Compute the "action" (whatever is processed into the action) for this step
-        # This uses the current observation and memory state
-        action_out = self.action_mlp(memory)
+        # This uses the current observation and memory state (concatenate and pass into MLP?)
+        # Currently only uses memory for testing purposes...
+        action_out = self.action_mlp(torch.reshape(memory, [*batch_size, -1]))
 
         # Preprocess the observation into a vector of the right size for the memory
         observation_feature = self.feature(observation)

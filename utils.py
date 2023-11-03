@@ -2,7 +2,6 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
-import copy
 
 import tempfile
 from contextlib import nullcontext
@@ -14,19 +13,21 @@ from torch import nn, optim
 from torchrl.collectors import SyncDataCollector
 from torchrl.data import TensorDictPrioritizedReplayBuffer, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.storages import LazyMemmapStorage
-from torchrl.envs import Compose, DoubleToFloat, EnvCreator, ParallelEnv, TransformedEnv
-from torchrl.envs.libs.gym import GymEnv, set_gym_backend
+from torchrl.envs import Compose, EnvCreator, ParallelEnv, TransformedEnv
 from torchrl.envs.transforms import InitTracker, RewardSum, StepCounter
-from torchrl.envs.transforms import FiniteTensorDictCheck, ObservationNorm, FrameSkipTransform
+from torchrl.envs.transforms import FiniteTensorDictCheck
 from torchrl.envs.utils import ExplorationType, set_exploration_type
 from torchrl.modules import MLP, ProbabilisticActor, ValueOperator, LSTMModule
 from torchrl.modules.distributions import TanhNormal
 from torchrl.objectives import SoftUpdate
-from torchrl.data import CompositeSpec, TensorSpec
+from torchrl.data import CompositeSpec
 from torchrl.objectives.common import LossModule
 from tensordict.tensordict import TensorDict, TensorDictBase
+from torchrl.envs.transforms.transforms import TensorDictPrimer
+from torchrl.data import UnboundedContinuousTensorSpec
 from typing import Tuple
 from solver.KS_environment import KSenv
+from models.attention.self_attention import SelfAttentionMemoryActor
 
 
 # ====================================================================
@@ -35,56 +36,75 @@ from solver.KS_environment import KSenv
 
 
 def make_ks_env(cfg):
-    transforms = Compose(
+    transform_list = [
         InitTracker(),
         StepCounter(cfg.env.max_episode_steps // cfg.env.frame_skip),
-        # DoubleToFloat(),
         RewardSum(),
         FiniteTensorDictCheck(),
-        #FrameSkipTransform(frame_skip=cfg.env.frame_skip),
         # ObservationNorm(in_keys=["observation"], loc=0., scale=10.),
-    )
+    ]
+    # For the self attention memory, add a TensorDictPrimer
+    if cfg.network.architecture == 'attention':
+        transform_list.append(
+            TensorDictPrimer(
+                {
+                    str(cfg.network.attention.memory_key): UnboundedContinuousTensorSpec(
+                        shape=(cfg.network.attention.num_memories, cfg.network.attention.size_memory),
+                        dtype=torch.float32,
+                        device=cfg.collector.collector_device,
+                    ),
+                },
+                default_value=0.0,
+                random=bool(cfg.network.attention.initialise_random_memory),
+            )
+        )
+    transforms = Compose(*transform_list)
     device = cfg.collector.collector_device
-    actuator_locs = torch.tensor(np.linspace(start=0.0, stop=2*torch.pi, num=cfg.env.num_actuators, endpoint=False), device=device)
-    sensor_locs = torch.tensor(np.linspace(start=0.0, stop=2*torch.pi, num=cfg.env.num_sensors, endpoint=False), device=device)
+    actuator_locs = torch.tensor(
+        np.linspace(
+            start=0.0,
+            stop=2 * torch.pi,
+            num=cfg.env.num_actuators,
+            endpoint=False
+        ),
+        device=device
+    )
+    sensor_locs = torch.tensor(
+        np.linspace(start=0.0,
+                    stop=2 * torch.pi,
+                    num=cfg.env.num_sensors,
+                    endpoint=False
+                    ),
+        device=device
+    )
 
     train_env = TransformedEnv(
-        ParallelEnv(
-            cfg.collector.env_per_collector,
-            EnvCreator(
-                lambda: KSenv(
-                    nu=float(cfg.env.nu),
-                    actuator_locs=actuator_locs,
-                    sensor_locs=sensor_locs,
-                    burn_in=int(cfg.env.burnin),
-                    frame_skip=int(cfg.env.frame_skip),
-                    soft_action=bool(cfg.env.soft_action),
-                    autoreg_weight=float(cfg.env.autoreg_action),
-                    actuator_loss_weight=float(cfg.optim.actuator_loss_weight),
-                    device=cfg.collector.collector_device,
-                )
-            )
+        KSenv(
+            nu=float(cfg.env.nu),
+            actuator_locs=actuator_locs,
+            sensor_locs=sensor_locs,
+            burn_in=int(cfg.env.burnin),
+            frame_skip=int(cfg.env.frame_skip),
+            soft_action=bool(cfg.env.soft_action),
+            autoreg_weight=float(cfg.env.autoreg_action),
+            actuator_loss_weight=float(cfg.optim.actuator_loss_weight),
+            device=cfg.collector.collector_device,
         ),
         transforms
     )
     train_env.set_seed(cfg.env.seed)
 
     eval_env = TransformedEnv(
-        ParallelEnv(
-            cfg.collector.env_per_collector,
-            EnvCreator(
-                lambda: KSenv(
-                    nu=float(cfg.env.nu),
-                    actuator_locs=actuator_locs,
-                    sensor_locs=sensor_locs,
-                    burn_in=int(cfg.env.burnin),
-                    frame_skip=int(cfg.env.frame_skip),
-                    soft_action=bool(cfg.env.soft_action),
-                    autoreg_weight=float(cfg.env.autoreg_action),
-                    actuator_loss_weight=float(cfg.optim.actuator_loss_weight),
-                    device=cfg.collector.collector_device,
-                )
-            )
+        KSenv(
+            nu=float(cfg.env.nu),
+            actuator_locs=actuator_locs,
+            sensor_locs=sensor_locs,
+            burn_in=int(cfg.env.burnin),
+            frame_skip=int(cfg.env.frame_skip),
+            soft_action=bool(cfg.env.soft_action),
+            autoreg_weight=float(cfg.env.autoreg_action),
+            actuator_loss_weight=float(cfg.optim.actuator_loss_weight),
+            device=cfg.collector.collector_device,
         ),
         train_env.transform.clone()
     )
@@ -112,17 +132,17 @@ def make_collector(cfg, train_env, actor_model_explore):
 
 
 def make_replay_buffer(
-    batch_size,
-    prb=False,
-    buffer_size=1000000,
-    buffer_scratch_dir=None,
-    device="cpu",
-    prefetch=3,
+        batch_size,
+        prb=False,
+        buffer_size=1000000,
+        buffer_scratch_dir=None,
+        device="cpu",
+        prefetch=3,
 ):
     with (
-        tempfile.TemporaryDirectory()
-        if buffer_scratch_dir is None
-        else nullcontext(buffer_scratch_dir)
+            tempfile.TemporaryDirectory()
+            if buffer_scratch_dir is None
+            else nullcontext(buffer_scratch_dir)
     ) as scratch_dir:
         if prb:
             replay_buffer = TensorDictPrioritizedReplayBuffer(
@@ -193,19 +213,35 @@ def basic_tqc_actor(cfg, in_keys, out_keys, action_spec):
     return actor_module
 
 
-def lstm_tqc_actor(cfg, in_keys, out_keys, action_spec):
+def buffer_memory_actor(cfg, in_keys, out_keys, action_spec):
+    # How do we reset the buffer when we reset the env?
+    # We have the 'InitTracker' to tell us when env has been reset
+
+    # Probably this needs to be a custom TensorDictModule or TensorDictModuleBase
+    # subclass, and you can reset in the forward() method (like in LSTMModule)
+
+    return None
+
+
+def lstm_actor(cfg, in_keys, out_keys, action_spec):
     lstm_key = "embed"
 
+    #feature = TensorDictModule(
+    #    MLP(num_cells=cfg.network.lstm.feature_hidden_sizes,
+    #        out_features=cfg.network.lstm.feature_out_size,
+    #        activation_class=get_activation(cfg)),
+    #    in_keys=in_keys,
+    #    out_keys=[lstm_key],
+    #)
+
     feature = TensorDictModule(
-        MLP(num_cells=cfg.network.lstm.feature_hidden_sizes,
-            out_features=cfg.network.lstm.feature_out_size,
-            activation_class=get_activation(cfg)),
+        nn.Linear(cfg.env.num_sensors, cfg.network.lstm.feature_size, bias=False),
         in_keys=in_keys,
         out_keys=[lstm_key],
     )
 
     lstm = LSTMModule(
-        input_size=feature.module[-1].out_features,
+        input_size=cfg.network.lstm.feature_size,
         hidden_size=cfg.network.lstm.hidden_size,
         device=cfg.network.device,
         in_key=lstm_key,
@@ -213,20 +249,20 @@ def lstm_tqc_actor(cfg, in_keys, out_keys, action_spec):
     )
 
     final_net = MLP(
-        num_cells=[cfg.network.lstm.hidden_size // 2],
+        num_cells=[cfg.network.lstm.hidden_size // 2, cfg.network.lstm.hidden_size // 2],
         out_features=2 * action_spec.shape[-1],
         activation_class=get_activation(cfg)
     )
     final_net[-1].bias.data.fill_(0.0)
     final_mlp = TensorDictModule(
         final_net,
-        in_keys=lstm_key,
+        in_keys=[lstm_key] + in_keys,  # The final net can see the original observation and the LSTM state
         out_keys=out_keys,
     )
 
     actor_module = TensorDictSequential(feature, lstm, final_mlp)
 
-    # Look at the cuDNN optimisation options (for computing loss)
+    # TO-DO: Look at the cuDNN optimisation options (for computing loss)
 
     return actor_module
 
@@ -249,7 +285,13 @@ def make_tqc_agent(cfg, train_env, eval_env, device):
     if cfg.network.architecture == 'base':
         actor_net = basic_tqc_actor(cfg, in_keys=in_keys_actor, out_keys=out_keys_actor, action_spec=action_spec)
     elif cfg.network.architecture == 'lstm':
-        actor_net = lstm_tqc_actor(cfg, in_keys=in_keys_actor, out_keys=out_keys_actor, action_spec=action_spec)
+        actor_net = lstm_actor(cfg, in_keys=in_keys_actor, out_keys=out_keys_actor, action_spec=action_spec)
+    elif cfg.network.architecture == 'attention':
+        actor_net = SelfAttentionMemoryActor(
+            cfg,
+            action_spec=action_spec,
+            out_key=out_keys_actor[0],
+        )
 
     actor_extractor = TensorDictModule(
         NormalParamExtractor(

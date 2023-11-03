@@ -1,8 +1,8 @@
 # environment and task
 env:
-  nu: 0.08
-  num_actuators: 10
-  num_sensors: 64
+  nu: 0.05
+  num_actuators: 9
+  num_sensors: 10
   burnin: 0
   exp_name: KS
   max_episode_steps: 1_000
@@ -13,7 +13,7 @@ env:
 
 # collector
 collector:
-  total_frames: 26_000
+  total_frames: 1_000_000
   init_random_frames: 25_000
   frames_per_batch: 1_000
   collector_device: cpu
@@ -40,7 +40,7 @@ optim:
 
 # network
 network:
-  architecture: lstm  # one of base, lstm
+  architecture: attention  # one of base, lstm, attention
   actor_hidden_sizes: [256, 256]
   critic_hidden_sizes: [512, 512, 512]
   n_quantiles: 25
@@ -51,9 +51,15 @@ network:
   scale_lb: 0.1
   device: cpu
   lstm:
-    hidden_size: 128
-    feature_hidden_sizes: [128, 64]
-    feature_out_size: 32
+    hidden_size: 512
+    #feature_hidden_sizes: [128, 64]
+    feature_size: 10
+  attention:
+    num_memories: 10
+    size_memory: 25
+    n_heads: 5
+    memory_key: memory  # name of the key under which the memory is stored in tensordict
+    initialise_random_memory: True  # If True, initialise memory entries from a unit Gaussian. If False, set to 0.
 
 # logging
 logger:
