@@ -222,7 +222,7 @@ def make_tqc_agent(cfg, train_env, eval_env):
     device = cfg.network.device
     # Define Actor Network
     in_keys_actor = ["observation"]
-    out_keys_actor = ["actor_net_out"]
+    out_keys_actor = ["_actor_net_out"]
     action_spec = train_env.action_spec
     if train_env.batch_size:
         action_spec = action_spec[(0,) * len(train_env.batch_size)]
@@ -231,7 +231,11 @@ def make_tqc_agent(cfg, train_env, eval_env):
     if cfg.network.architecture == 'base':
         actor_net = basic_tqc_actor(cfg, in_keys=in_keys_actor, out_keys=out_keys_actor, action_spec=action_spec)
     elif cfg.network.architecture == 'lstm':
-        actor_net = lstm_actor(cfg, in_keys=in_keys_actor, out_keys=out_keys_actor, action_spec=action_spec)
+        actor_net = lstm_actor(
+            cfg,
+            in_keys=["observation", "prev_action"],
+            out_keys=out_keys_actor,
+            action_spec=action_spec)
     elif cfg.network.architecture == 'attention':
         actor_net = SelfAttentionMemoryActor(
             cfg,

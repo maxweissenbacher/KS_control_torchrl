@@ -24,20 +24,30 @@ from models.attention.self_attention import SelfAttentionMemoryActor
 
 
 def lstm_actor(cfg, in_keys, out_keys, action_spec):
+    """
+    We assume that in_keys has two elements:
+    in_keys[0] is the key for observations
+    in_keys[1] is the key for the previous action
+    """
+    observation_key = in_keys[0]
+    previous_action_key = in_keys[1]
     lstm_key = "_embed"
     final_layer_observation_key = "_observation_mlp"
 
-    feature_for_final_layer = TensorDictModule(
+    mlp_observation_residual = TensorDictModule(
         MLP(num_cells=cfg.network.lstm.feature_for_final_layer_sizes,
-            out_features=cfg.network.lstm.hidden_size,
+            out_features=cfg.network.lstm.feature_size,
             activation_class=get_activation(cfg)),
-        in_keys=in_keys,
+        in_keys=[observation_key],
         out_keys=[final_layer_observation_key],
     )
 
     feature_for_lstm = TensorDictModule(
-        nn.Linear(cfg.env.num_sensors, cfg.network.lstm.feature_size, bias=False),
-        in_keys=in_keys,
+        MLP(num_cells=cfg.network.lstm.feature_for_final_layer_sizes,
+            out_features=cfg.network.lstm.feature_size,
+            activation_class=get_activation(cfg)),
+        #nn.Linear(cfg.env.num_sensors, cfg.network.lstm.feature_size, bias=False),
+        in_keys=[observation_key, previous_action_key],
         out_keys=[lstm_key],
     )
 
@@ -61,7 +71,7 @@ def lstm_actor(cfg, in_keys, out_keys, action_spec):
         out_keys=out_keys,
     )
 
-    actor_module = TensorDictSequential(feature_for_final_layer, feature_for_lstm, lstm, final_mlp)
+    actor_module = TensorDictSequential(mlp_observation_residual, feature_for_lstm, lstm, final_mlp)
 
     # TO-DO: Look at the cuDNN optimisation options (for computing loss)
 
