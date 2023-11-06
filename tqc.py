@@ -28,7 +28,6 @@ from utils import (
 
 @hydra.main(version_base="1.1", config_path="", config_name="config")
 def main(cfg: "DictConfig"):  # noqa: F821
-    device = torch.device(cfg.network.device)
 
     LOGGING_TO_CONSOLE = True
     torch.autograd.set_detect_anomaly(True)
@@ -47,7 +46,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
     train_env, eval_env = make_ks_env(cfg)
 
     # Create agent
-    model, exploration_policy = make_tqc_agent(cfg, train_env, eval_env, device)
+    model, exploration_policy = make_tqc_agent(cfg, train_env, eval_env)
 
     print('stop here')
 
@@ -66,7 +65,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
         prb=cfg.replay_buffer.prb,
         buffer_size=cfg.replay_buffer.size // cfg.env.frame_skip,
         buffer_scratch_dir=cfg.replay_buffer.scratch_dir,
-        device=device,
+        device=cfg.network.device,
     )
 
     print('stop here')

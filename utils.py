@@ -272,8 +272,9 @@ def lstm_actor(cfg, in_keys, out_keys, action_spec):
 # -----
 
 
-def make_tqc_agent(cfg, train_env, eval_env, device):
+def make_tqc_agent(cfg, train_env, eval_env):
     """Make TQC agent."""
+    device = cfg.network.device
     # Define Actor Network
     in_keys_actor = ["observation"]
     out_keys_actor = ["actor_net_out"]
@@ -327,7 +328,7 @@ def make_tqc_agent(cfg, train_env, eval_env, device):
 
     model = nn.ModuleList([actor, qvalue]).to(device)
 
-    # init nets
+    # Initialise models
     with torch.no_grad(), set_exploration_type(ExplorationType.RANDOM):
         td = eval_env.reset()
         td = td.to(device)
