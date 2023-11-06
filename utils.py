@@ -28,6 +28,7 @@ from torchrl.data import UnboundedContinuousTensorSpec
 from typing import Tuple
 from solver.KS_environment import KSenv
 from models.attention.self_attention import SelfAttentionMemoryActor
+from models.lstm.lstm import lstm_actor
 
 
 # ====================================================================
