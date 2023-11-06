@@ -22,6 +22,7 @@ from typing import Tuple
 from solver.KS_environment import KSenv
 from models.attention.self_attention import SelfAttentionMemoryActor
 
+
 def basic_tqc_actor(cfg, in_keys, out_keys, action_spec):
     activation = nn.ReLU
 

@@ -28,7 +28,7 @@ from torchrl.data import UnboundedContinuousTensorSpec
 from typing import Tuple
 from solver.KS_environment import KSenv
 from models.attention.self_attention import SelfAttentionMemoryActor
-from models.lstm.lstm import lstm_actor
+from models.lstm.lstm import lstm_actor, lstm_critic
 from models.memoryless.base import basic_tqc_actor, tqc_critic_net
 
 
@@ -233,6 +233,9 @@ def make_tqc_agent(cfg, train_env, eval_env):
     )
 
     # Define Critic Network
+
+    # TO-DO: Broken...... you should return a TensorDictModule here in all three cases.........
+
     qvalue_net = None
     if cfg.network.architecture == 'base':
         qvalue_net = tqc_critic_net(cfg)

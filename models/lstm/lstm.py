@@ -21,6 +21,7 @@ from torchrl.data import UnboundedContinuousTensorSpec
 from typing import Tuple
 from solver.KS_environment import KSenv
 from models.attention.self_attention import SelfAttentionMemoryActor
+from models.memoryless.base import tqc_critic_net
 
 
 def lstm_actor(cfg, in_keys, out_keys, action_spec):
@@ -80,6 +81,64 @@ def lstm_actor(cfg, in_keys, out_keys, action_spec):
     return actor_module
 
 
-def lstm_critic():
-    return None
+def lstm_critic(cfg, in_keys, out_keys, action_spec):
 
+    # TO-DO : introduce proper hyperparameters and network layouts...
+    # Graph should be connected correctly
+
+    observation_key = in_keys[0]
+    action_key = in_keys[1]
+    previous_action_key = in_keys[2]
+    lstm_key = "_embed_critic"
+    state_action_embed_key = "_state_action_embed"
+    critic_in_key = "_critic_input_key"
+
+    activation = nn.ReLU
+
+    mlp_state_action = TensorDictModule(
+        MLP(num_cells=cfg.network.lstm.feature_for_final_layer_sizes,
+            out_features=cfg.network.lstm.feature_size,
+            activation_class=activation),
+        in_keys=[observation_key, action_key],
+        out_keys=[state_action_embed_key],
+    )
+
+    mlp_state_prev_action = TensorDictModule(
+        MLP(num_cells=cfg.network.lstm.feature_for_final_layer_sizes,
+            out_features=cfg.network.lstm.feature_size,
+            activation_class=activation),
+        in_keys=[observation_key, previous_action_key],
+        out_keys=[lstm_key],
+    )
+
+    lstm = LSTMModule(
+        input_size=cfg.network.lstm.feature_size,
+        hidden_size=cfg.network.lstm.hidden_size,
+        device=cfg.network.device,
+        in_key=lstm_key,
+        out_key=lstm_key,
+    )
+
+    final_mlp = TensorDictModule(
+        MLP(num_cells=cfg.network.lstm.feature_for_final_layer_sizes,
+            out_features=cfg.network.lstm.feature_size,
+            activation_class=activation),
+        in_keys=[lstm_key, state_action_embed_key],
+        out_keys=[critic_in_key],
+    )
+
+    tqc_critic_mlp = TensorDictModule(
+        tqc_critic_net(cfg),
+        in_keys=[critic_in_key],
+        out_keys=[critic_in_key],
+    )
+
+    critic_module = TensorDictSequential(
+        mlp_state_action,
+        mlp_state_prev_action,
+        lstm,
+        final_mlp,
+        tqc_critic_mlp
+    )
+
+    return critic_module
