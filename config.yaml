@@ -40,7 +40,7 @@ optim:
 
 # network
 network:
-  architecture: attention  # one of base, lstm, attention
+  architecture: lstm  # one of base, lstm, attention
   actor_hidden_sizes: [256, 256]
   critic_hidden_sizes: [512, 512, 512]
   n_quantiles: 25
@@ -52,14 +52,15 @@ network:
   device: cpu
   lstm:
     hidden_size: 512
-    #feature_hidden_sizes: [128, 64]
-    feature_size: 10
+    final_net_sizes: [256, 256]
+    feature_for_final_layer_sizes: [256, 256]
+    feature_size: 64
   attention:
     num_memories: 10
     size_memory: 25
     n_heads: 5
     memory_key: memory  # name of the key under which the memory is stored in tensordict
-    initialise_random_memory: True  # If True, initialise memory entries from a unit Gaussian. If False, set to 0.
+    initialise_random_memory: False  # If True, initialise memory entries from a unit Gaussian. If False, set to 0.
 
 # logging
 logger:

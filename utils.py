@@ -29,6 +29,7 @@ from typing import Tuple
 from solver.KS_environment import KSenv
 from models.attention.self_attention import SelfAttentionMemoryActor
 from models.lstm.lstm import lstm_actor
+from models.memoryless.base import basic_tqc_actor, tqc_critic_net
 
 
 # ====================================================================
@@ -161,45 +162,8 @@ def make_replay_buffer(
 
 
 # ====================================================================
-# Model architecture for critic
-# -----------------------------
-
-
-class tqc_critic_net(nn.Module):
-    def __init__(self, cfg):
-        super().__init__()
-        self.nets = []
-        qvalue_net_kwargs = {
-            "num_cells": cfg.network.critic_hidden_sizes,
-            "out_features": cfg.network.n_quantiles,
-            "activation_class": get_activation(cfg),
-        }
-        for i in range(cfg.network.n_nets):
-            net = MLP(**qvalue_net_kwargs)
-            self.add_module(f'critic_net_{i}', net)
-            self.nets.append(net)
-
-    def forward(self, *inputs: Tuple[torch.Tensor]) -> torch.Tensor:
-        if len(inputs) > 1:
-            inputs = (torch.cat([*inputs], -1),)
-        quantiles = torch.stack(tuple(net(*inputs) for net in self.nets), dim=-2)  # batch x n_nets x n_quantiles
-        return quantiles
-
-
-# ====================================================================
 # Actor architectures
 # -------------------
-
-
-def basic_tqc_actor(cfg, in_keys, out_keys, action_spec):
-    actor_module = TensorDictModule(
-        MLP(num_cells=cfg.network.actor_hidden_sizes,
-            out_features=2 * action_spec.shape[-1],
-            activation_class=get_activation(cfg)),
-        in_keys=in_keys,
-        out_keys=out_keys,
-    )
-    return actor_module
 
 
 def buffer_memory_actor(cfg, in_keys, out_keys, action_spec):
@@ -269,6 +233,9 @@ def make_tqc_agent(cfg, train_env, eval_env):
     )
 
     # Define Critic Network
+    qvalue_net = None
+    if cfg.network.architecture == 'base':
+        qvalue_net = tqc_critic_net(cfg)
     qvalue_net = tqc_critic_net(cfg)
     qvalue = ValueOperator(
         in_keys=["action"] + in_keys_actor,

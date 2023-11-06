@@ -34,10 +34,12 @@ def lstm_actor(cfg, in_keys, out_keys, action_spec):
     lstm_key = "_embed"
     final_layer_observation_key = "_observation_mlp"
 
+    activation = nn.ReLU
+
     mlp_observation_residual = TensorDictModule(
         MLP(num_cells=cfg.network.lstm.feature_for_final_layer_sizes,
             out_features=cfg.network.lstm.feature_size,
-            activation_class=get_activation(cfg)),
+            activation_class=activation),
         in_keys=[observation_key],
         out_keys=[final_layer_observation_key],
     )
@@ -45,7 +47,7 @@ def lstm_actor(cfg, in_keys, out_keys, action_spec):
     feature_for_lstm = TensorDictModule(
         MLP(num_cells=cfg.network.lstm.feature_for_final_layer_sizes,
             out_features=cfg.network.lstm.feature_size,
-            activation_class=get_activation(cfg)),
+            activation_class=activation),
         #nn.Linear(cfg.env.num_sensors, cfg.network.lstm.feature_size, bias=False),
         in_keys=[observation_key, previous_action_key],
         out_keys=[lstm_key],
@@ -62,7 +64,7 @@ def lstm_actor(cfg, in_keys, out_keys, action_spec):
     final_net = MLP(
         num_cells=cfg.network.lstm.final_net_sizes,
         out_features=2 * action_spec.shape[-1],
-        activation_class=get_activation(cfg)
+        activation_class=activation
     )
     #final_net[-1].bias.data.fill_(0.0)
     final_mlp = TensorDictModule(
@@ -80,15 +82,4 @@ def lstm_actor(cfg, in_keys, out_keys, action_spec):
 
 def lstm_critic():
     return None
-
-
-def get_activation(cfg):
-    if cfg.network.activation == "relu":
-        return nn.ReLU
-    elif cfg.network.activation == "tanh":
-        return nn.Tanh
-    elif cfg.network.activation == "leaky_relu":
-        return nn.LeakyReLU
-    else:
-        raise NotImplementedError
 
