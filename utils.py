@@ -223,50 +223,6 @@ def buffer_memory_actor(cfg, in_keys, out_keys, action_spec):
     return None
 
 
-def lstm_actor(cfg, in_keys, out_keys, action_spec):
-    lstm_key = "embed"
-
-    #feature = TensorDictModule(
-    #    MLP(num_cells=cfg.network.lstm.feature_hidden_sizes,
-    #        out_features=cfg.network.lstm.feature_out_size,
-    #        activation_class=get_activation(cfg)),
-    #    in_keys=in_keys,
-    #    out_keys=[lstm_key],
-    #)
-
-    feature = TensorDictModule(
-        nn.Linear(cfg.env.num_sensors, cfg.network.lstm.feature_size, bias=False),
-        in_keys=in_keys,
-        out_keys=[lstm_key],
-    )
-
-    lstm = LSTMModule(
-        input_size=cfg.network.lstm.feature_size,
-        hidden_size=cfg.network.lstm.hidden_size,
-        device=cfg.network.device,
-        in_key=lstm_key,
-        out_key=lstm_key,
-    )
-
-    final_net = MLP(
-        num_cells=[cfg.network.lstm.hidden_size // 2, cfg.network.lstm.hidden_size // 2],
-        out_features=2 * action_spec.shape[-1],
-        activation_class=get_activation(cfg)
-    )
-    final_net[-1].bias.data.fill_(0.0)
-    final_mlp = TensorDictModule(
-        final_net,
-        in_keys=[lstm_key] + in_keys,  # The final net can see the original observation and the LSTM state
-        out_keys=out_keys,
-    )
-
-    actor_module = TensorDictSequential(feature, lstm, final_mlp)
-
-    # TO-DO: Look at the cuDNN optimisation options (for computing loss)
-
-    return actor_module
-
-
 # ====================================================================
 # Model
 # -----
