@@ -15,7 +15,7 @@ from torchrl.data import TensorDictPrioritizedReplayBuffer, TensorDictReplayBuff
 from torchrl.data.replay_buffers.storages import LazyMemmapStorage
 from torchrl.envs import Compose, EnvCreator, ParallelEnv, TransformedEnv
 from torchrl.envs.transforms import InitTracker, RewardSum, StepCounter
-from torchrl.envs.transforms import FiniteTensorDictCheck
+from torchrl.envs.transforms import FiniteTensorDictCheck, ObservationNorm
 from torchrl.envs.utils import ExplorationType, set_exploration_type
 from torchrl.modules import MLP, ProbabilisticActor, ValueOperator, LSTMModule
 from torchrl.modules.distributions import TanhNormal
@@ -37,12 +37,13 @@ from models.lstm.lstm import lstm_actor
 
 
 def make_ks_env(cfg):
+    # Make transforms
     transform_list = [
         InitTracker(),
         StepCounter(cfg.env.max_episode_steps // cfg.env.frame_skip),
         RewardSum(),
         FiniteTensorDictCheck(),
-        # ObservationNorm(in_keys=["observation"], loc=0., scale=10.),
+        ObservationNorm(in_keys=["observation"], loc=0., scale=10.),
     ]
     # For the self attention memory, add a TensorDictPrimer
     if cfg.network.architecture == 'attention':
@@ -59,7 +60,9 @@ def make_ks_env(cfg):
                 random=bool(cfg.network.attention.initialise_random_memory),
             )
         )
-    transforms = Compose(*transform_list)
+    env_transforms = Compose(*transform_list)
+
+    # Set environment hyperparameters
     device = cfg.collector.collector_device
     actuator_locs = torch.tensor(
         np.linspace(
@@ -78,37 +81,22 @@ def make_ks_env(cfg):
                     ),
         device=device
     )
+    env_params = {
+        "nu": float(cfg.env.nu),
+        "actuator_locs": actuator_locs,
+        "sensor_locs": sensor_locs,
+        "burn_in": int(cfg.env.burnin),
+        "frame_skip": int(cfg.env.frame_skip),
+        "soft_action": bool(cfg.env.soft_action),
+        "autoreg_weight": float(cfg.env.autoreg_action),
+        "actuator_loss_weight": float(cfg.optim.actuator_loss_weight),
+        "device": cfg.collector.collector_device,
+    }
 
-    train_env = TransformedEnv(
-        KSenv(
-            nu=float(cfg.env.nu),
-            actuator_locs=actuator_locs,
-            sensor_locs=sensor_locs,
-            burn_in=int(cfg.env.burnin),
-            frame_skip=int(cfg.env.frame_skip),
-            soft_action=bool(cfg.env.soft_action),
-            autoreg_weight=float(cfg.env.autoreg_action),
-            actuator_loss_weight=float(cfg.optim.actuator_loss_weight),
-            device=cfg.collector.collector_device,
-        ),
-        transforms
-    )
+    # Create environments
+    train_env = TransformedEnv(KSenv(**env_params), env_transforms)
     train_env.set_seed(cfg.env.seed)
-
-    eval_env = TransformedEnv(
-        KSenv(
-            nu=float(cfg.env.nu),
-            actuator_locs=actuator_locs,
-            sensor_locs=sensor_locs,
-            burn_in=int(cfg.env.burnin),
-            frame_skip=int(cfg.env.frame_skip),
-            soft_action=bool(cfg.env.soft_action),
-            autoreg_weight=float(cfg.env.autoreg_action),
-            actuator_loss_weight=float(cfg.optim.actuator_loss_weight),
-            device=cfg.collector.collector_device,
-        ),
-        train_env.transform.clone()
-    )
+    eval_env = TransformedEnv(KSenv(**env_params), train_env.transform.clone())
 
     return train_env, eval_env
 
