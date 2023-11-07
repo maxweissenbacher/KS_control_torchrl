@@ -5,7 +5,11 @@ from torchrl.modules import MLP, ValueOperator
 from typing import Tuple
 
 
-def basic_tqc_actor(cfg, in_keys, out_keys, action_spec):
+def basic_tqc_actor(cfg, action_spec, in_keys=None, out_keys=None):
+    if out_keys is None:
+        out_keys = ["_actor_net_out"]
+    if in_keys is None:
+        in_keys = ["observation"]
     activation = nn.ReLU
 
     actor_module = TensorDictModule(
@@ -15,6 +19,7 @@ def basic_tqc_actor(cfg, in_keys, out_keys, action_spec):
         in_keys=in_keys,
         out_keys=out_keys,
     )
+
     return actor_module
 
 
@@ -38,3 +43,19 @@ class tqc_critic_net(nn.Module):
             inputs = (torch.cat([*inputs], -1),)
         quantiles = torch.stack(tuple(net(*inputs) for net in self.nets), dim=-2)  # batch x n_nets x n_quantiles
         return quantiles
+
+
+def basic_tqc_critic(cfg, in_keys=None, out_keys=None):
+    if out_keys is None:
+        out_keys = ["state_action_value"]
+    if in_keys is None:
+        in_keys = ["action", "observation"]
+
+    qvalue_net = tqc_critic_net(cfg)
+    qvalue = ValueOperator(
+        in_keys=in_keys,
+        out_keys=out_keys,
+        module=qvalue_net,
+    )
+
+    return qvalue

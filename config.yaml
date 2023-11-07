@@ -13,7 +13,7 @@ env:
 
 # collector
 collector:
-  total_frames: 1_000_000
+  total_frames: 500_000
   init_random_frames: 25_000
   frames_per_batch: 1_000
   collector_device: cpu
@@ -52,8 +52,8 @@ network:
   device: cpu
   lstm:
     hidden_size: 512
-    final_net_sizes: [256, 256]
-    feature_for_final_layer_sizes: [256, 256]
+    final_net_sizes: [256]
+    preprocessing_mlp_sizes: [256, 256]
     feature_size: 64
   attention:
     num_memories: 10

@@ -10,11 +10,11 @@ from torchrl.modules import MLP
 
 
 class MapToQKV(Module):
-    def __init__(self, size_memory):
+    def __init__(self, size_memory, device):
         super().__init__()
-        self.q = Linear(size_memory, size_memory, bias=False)
-        self.k = Linear(size_memory, size_memory, bias=False)
-        self.v = Linear(size_memory, size_memory, bias=False)
+        self.q = Linear(size_memory, size_memory, bias=False, device=device)
+        self.k = Linear(size_memory, size_memory, bias=False, device=device)
+        self.v = Linear(size_memory, size_memory, bias=False, device=device)
 
     def forward(self, M, x):
         """
@@ -47,7 +47,7 @@ class MultiHeadAttention(Module):
         super(MultiHeadAttention, self).__init__()
         self.n_head = n_head
         self.attention = ScaleDotProductAttention()
-        self.qkv = MapToQKV(size_memory)
+        self.qkv = MapToQKV(size_memory, device=device)
         self.w_concat = Linear(size_memory, size_memory, device=device)
 
     def forward(self, M, x):
@@ -88,25 +88,24 @@ class SelfAttentionLayer(Module):
 
 
 class SelfAttentionMemoryActor(TensorDictModuleBase):
-    def __init__(
-            self,
-            cfg,
-            action_spec,
-            out_key,
-    ):
+    def __init__(self, cfg, action_spec, in_keys=None, out_keys=None):
         super().__init__()
-        self.memory_key = "memory"
-        self.in_keys = ["observation", self.memory_key]
-        self.out_keys = [out_key, ("next", self.memory_key)]
+        if out_keys is None:
+            out_keys = ["_actor_net_out", ("next", "memory")]
+        if in_keys is None:
+            in_keys = ["observation", "memory"]
+        assert(out_keys[1][1] == in_keys[1])
+
+        self.memory_key = in_keys[1]
+        self.in_keys = in_keys
+        self.out_keys = out_keys
 
         self.num_memories = cfg.network.attention.num_memories
         self.size_memory = cfg.network.attention.size_memory
         self.action_spec = action_spec
         self.batch_size = action_spec
         self.n_heads = cfg.network.attention.n_heads
-        self.memory_reset_std = 0.1
         self.device = cfg.network.device
-
 
         print('stop here')
 
@@ -117,6 +116,7 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
             device=self.device
         )
 
+        """
         class MemoryReader(Module):
             def __init__(self, batch_size, action_spec, device):
                 super(MemoryReader, self).__init__()
@@ -134,6 +134,7 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
                 return self.mlp(reshaped_memory)
 
         self.memory_reader = MemoryReader([256], self.action_spec, self.device)
+        """
 
         self.feature = MLP(
             num_cells=[128, 128],
@@ -141,6 +142,7 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
             activation_class=nn.ReLU,
             device=self.device
         )
+
         self.attention = SelfAttentionLayer(
             size_memory=self.size_memory,
             n_head=self.n_heads,
@@ -160,21 +162,42 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
         # This uses the current observation and memory state (concatenate and pass into MLP?)
         # Currently only uses memory for testing purposes...
         action_out = self.action_mlp(torch.reshape(memory, [*batch_size, -1]))
+        # action_out = self.action_mlp(torch.reshape(observation, [*batch_size, -1]))
 
         # Preprocess the observation into a vector of the right size for the memory
         observation_feature = self.feature(observation)
 
         # Compute proposed memory update
         memory_update = self.attention(memory, observation_feature)
+        # memory_update = memory
 
         # Now conduct the ACTUAL memory update (i.e. autoregression, LSTM where input is proposed update and
         # output is real update, the special LSTM architecture from the Deepmind paper, ...)
         # For now, simple autoregressive update for memory:
-        next_memory = 0.9 * memory + 0.1 * memory_update
+        alpha = 1.0
+        next_memory = (1-alpha) * memory + alpha * memory_update
 
         # Write output to tensordict
         tensordict.set(self.out_keys[0], action_out)
         tensordict.set(self.out_keys[1], next_memory)
 
         return tensordict
+
+
+"""
+class SelfAttentionMemoryCritic(TensorDictModuleBase):
+    def __init__(self, cfg, in_keys=None, out_keys=None):
+        super().__init__()
+        if out_keys is None:
+            out_keys = ["state_action_value"]
+        if in_keys is None:
+            in_keys = ["observation", "action"]
+        self.in_keys = in_keys
+        self.out_keys = out_keys
+
+        self.net = tqc_critic_net(cfg)
+
+    def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
+        return None
+"""
 

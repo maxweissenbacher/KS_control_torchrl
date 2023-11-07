@@ -29,7 +29,7 @@ from typing import Tuple
 from solver.KS_environment import KSenv
 from models.attention.self_attention import SelfAttentionMemoryActor
 from models.lstm.lstm import lstm_actor, lstm_critic
-from models.memoryless.base import basic_tqc_actor, tqc_critic_net
+from models.memoryless.base import basic_tqc_actor, basic_tqc_critic
 
 
 # ====================================================================
@@ -193,19 +193,11 @@ def make_tqc_agent(cfg, train_env, eval_env):
 
     actor_net = None
     if cfg.network.architecture == 'base':
-        actor_net = basic_tqc_actor(cfg, in_keys=in_keys_actor, out_keys=out_keys_actor, action_spec=action_spec)
+        actor_net = basic_tqc_actor(cfg, action_spec)
     elif cfg.network.architecture == 'lstm':
-        actor_net = lstm_actor(
-            cfg,
-            in_keys=["observation", "prev_action"],
-            out_keys=out_keys_actor,
-            action_spec=action_spec)
+        actor_net = lstm_actor(cfg, action_spec)
     elif cfg.network.architecture == 'attention':
-        actor_net = SelfAttentionMemoryActor(
-            cfg,
-            action_spec=action_spec,
-            out_key=out_keys_actor[0],
-        )
+        actor_net = SelfAttentionMemoryActor(cfg, action_spec)
 
     actor_extractor = TensorDictModule(
         NormalParamExtractor(
@@ -233,19 +225,15 @@ def make_tqc_agent(cfg, train_env, eval_env):
     )
 
     # Define Critic Network
-
-    # TO-DO: Broken...... you should return a TensorDictModule here in all three cases.........
-
-    qvalue_net = None
+    critic = None
     if cfg.network.architecture == 'base':
-        qvalue_net = tqc_critic_net(cfg)
-    qvalue_net = tqc_critic_net(cfg)
-    qvalue = ValueOperator(
-        in_keys=["action"] + in_keys_actor,
-        module=qvalue_net,
-    )
+        critic = basic_tqc_critic(cfg)
+    if cfg.network.architecture == 'lstm':
+        critic = lstm_critic(cfg)
+    if cfg.network.architecture == 'attention':
+        critic = basic_tqc_critic(cfg)
 
-    model = nn.ModuleList([actor, qvalue]).to(device)
+    model = nn.ModuleList([actor, critic]).to(device)
 
     # Initialise models
     with torch.no_grad(), set_exploration_type(ExplorationType.RANDOM):
