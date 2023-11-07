@@ -1,26 +1,6 @@
-import torch
-import numpy as np
-from tensordict.nn import InteractionType, TensorDictModule, TensorDictSequential
-from tensordict.nn.distributions import NormalParamExtractor
-from torch import nn, optim
-from torchrl.collectors import SyncDataCollector
-from torchrl.data import TensorDictPrioritizedReplayBuffer, TensorDictReplayBuffer
-from torchrl.data.replay_buffers.storages import LazyMemmapStorage
-from torchrl.envs import Compose, EnvCreator, ParallelEnv, TransformedEnv
-from torchrl.envs.transforms import InitTracker, RewardSum, StepCounter
-from torchrl.envs.transforms import FiniteTensorDictCheck, ObservationNorm
-from torchrl.envs.utils import ExplorationType, set_exploration_type
-from torchrl.modules import MLP, ProbabilisticActor, ValueOperator, LSTMModule
-from torchrl.modules.distributions import TanhNormal
-from torchrl.objectives import SoftUpdate
-from torchrl.data import CompositeSpec
-from torchrl.objectives.common import LossModule
-from tensordict.tensordict import TensorDict, TensorDictBase
-from torchrl.envs.transforms.transforms import TensorDictPrimer
-from torchrl.data import UnboundedContinuousTensorSpec
-from typing import Tuple
-from solver.KS_environment import KSenv
-from models.attention.self_attention import SelfAttentionMemoryActor
+from tensordict.nn import TensorDictModule, TensorDictSequential
+from torch import nn
+from torchrl.modules import MLP, LSTMModule
 from models.memoryless.base import tqc_critic_net
 
 

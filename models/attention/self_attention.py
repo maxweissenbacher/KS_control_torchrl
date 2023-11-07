@@ -6,9 +6,7 @@ from tensordict.nn import InteractionType, TensorDictModule, TensorDictSequentia
 from tensordict.tensordict import TensorDict, TensorDictBase
 from tensordict.tensordict import NO_DEFAULT
 from torchrl.modules import MLP
-from torchrl.envs.transforms.transforms import TensorDictPrimer
-from torchrl.data import UnboundedContinuousTensorSpec
-from icecream import ic
+#from models.memoryless.base import tqc_critic_net
 
 
 class MapToQKV(Module):
