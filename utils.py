@@ -27,7 +27,7 @@ from torchrl.envs.transforms.transforms import TensorDictPrimer
 from torchrl.data import UnboundedContinuousTensorSpec
 from typing import Tuple
 from solver.KS_environment import KSenv
-from models.attention.self_attention import SelfAttentionMemoryActor
+from models.attention.self_attention import SelfAttentionMemoryActor, SelfAttentionMemoryCritic
 from models.lstm.lstm import lstm_actor, lstm_critic
 from models.memoryless.base import basic_tqc_actor, basic_tqc_critic
 
@@ -231,7 +231,7 @@ def make_tqc_agent(cfg, train_env, eval_env):
     if cfg.network.architecture == 'lstm':
         critic = lstm_critic(cfg)
     if cfg.network.architecture == 'attention':
-        critic = basic_tqc_critic(cfg)
+        critic = SelfAttentionMemoryCritic(cfg, action_spec)
 
     model = nn.ModuleList([actor, critic]).to(device)
 
