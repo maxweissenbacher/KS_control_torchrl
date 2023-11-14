@@ -40,7 +40,7 @@ optim:
 
 # network
 network:
-  architecture: lstm  # one of base, lstm, attention
+  architecture: attention  # one of base, lstm, attention
   actor_hidden_sizes: [256, 256]
   critic_hidden_sizes: [512, 512, 512]
   n_quantiles: 25
@@ -59,6 +59,7 @@ network:
     num_memories: 10
     size_memory: 25
     n_heads: 5
+    attention_mlp_depth: 2  # this is default value in deepmind paper
     memory_key: memory  # name of the key under which the memory is stored in tensordict
     initialise_random_memory: False  # If True, initialise memory entries from a unit Gaussian. If False, set to 0.
 

@@ -79,13 +79,24 @@ class MultiHeadAttention(Module):
 
 
 class SelfAttentionLayer(Module):
-    def __init__(self, size_memory, n_head, device):
+    def __init__(self, size_memory, n_head, attention_mlp_depth, device):
         super(SelfAttentionLayer, self).__init__()
         self.multi_head_attention = MultiHeadAttention(size_memory, n_head, device)
+        self.norm = nn.LayerNorm(normalized_shape=size_memory)
+        self.attention_mlp = MLP(
+            num_cells=attention_mlp_depth*[size_memory],
+            out_features=size_memory,
+            activation_class=nn.ReLU,
+            device=device
+        )
 
-    def forward(self, M, x):
-        return self.multi_head_attention(M, x)
-
+    def forward(self, memory, input):
+        x = self.multi_head_attention(memory, input)  # Multi head attention
+        x += memory  # Residual connection
+        x_ = self.norm(x)  # Layer norm
+        x = self.attention_mlp(x_)  # Row/memory-wise MLP
+        x += x_  # Residual connection
+        return x
 
 class SelfAttentionMemoryActor(TensorDictModuleBase):
     def __init__(self, cfg, action_spec, in_keys=None, out_keys=None):
@@ -105,6 +116,7 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
         self.action_spec = action_spec
         self.batch_size = action_spec
         self.n_heads = cfg.network.attention.n_heads
+        self.attention_mlp_depth = cfg.network.attention.attention_mlp_depth
         self.device = cfg.network.device
 
         print('stop here')
@@ -146,6 +158,7 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
         self.attention = SelfAttentionLayer(
             size_memory=self.size_memory,
             n_head=self.n_heads,
+            attention_mlp_depth=self.attention_mlp_depth,
             device=self.device,
         )
 
