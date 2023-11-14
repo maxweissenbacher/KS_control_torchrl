@@ -135,49 +135,24 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
         self.observation_size = cfg.env.num_sensors
         self.device = cfg.network.device
 
-        print('stop here')
-
         self.action_mlp = MLP(
-            num_cells=[256],
+            num_cells=cfg.network.attention.actor_mlp_hidden_sizes,
             out_features=2 * self.action_spec.shape[-1],
             activation_class=nn.ReLU,
             device=self.device
         )
-
-        """
-        class MemoryReader(Module):
-            def __init__(self, batch_size, action_spec, device):
-                super(MemoryReader, self).__init__()
-                self.mlp = MLP(
-                    num_cells=[256],
-                    out_features=2 * action_spec.shape[-1],
-                    activation_class=nn.ReLU,
-                    device=device
-                )
-                self.batch_size = batch_size
-
-            def forward(self, memory):
-                batch_size = memory.size()[:-2]
-                reshaped_memory = torch.reshape(memory, [*batch_size, -1]).contiguous()
-                return self.mlp(reshaped_memory)
-
-        self.memory_reader = MemoryReader([256], self.action_spec, self.device)
-        """
-
         self.feature = MLP(
             num_cells=[128, 128],
             out_features=self.size_memory,
             activation_class=nn.ReLU,
             device=self.device
         )
-
         self.attention = SelfAttentionLayer(
             size_memory=self.size_memory,
             n_head=self.n_heads,
             attention_mlp_depth=self.attention_mlp_depth,
             device=self.device,
         )
-
         self.forget_gate = Gate(input_size=self.observation_size, size_memory=self.size_memory)
         self.input_gate = Gate(input_size=self.observation_size, size_memory=self.size_memory)
 
@@ -190,12 +165,6 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
         )
         batch_size = is_init.size()
 
-        # Compute the "action" (whatever is processed into the action) for this step
-        # This uses the current observation and memory state (concatenate and pass into MLP?)
-        # Currently only uses memory for testing purposes...
-        action_out = self.action_mlp(torch.reshape(memory, [*batch_size, -1]))
-        # action_out = self.action_mlp(torch.reshape(observation, [*batch_size, -1]))
-
         # Preprocess the observation into a vector of the right size for the memory
         observation_feature = self.feature(observation)
 
@@ -206,6 +175,11 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
         # Compute memory update
         next_memory = self.attention(memory, observation_feature)
         next_memory = forget_gate * memory + input_gate * nn.Tanh()(next_memory)
+
+        # Compute the "action" (whatever is processed into the action) for this step
+        # This uses the current observation and memory state
+        memory_observation = torch.cat((memory.view([*batch_size, -1]), observation.view([*batch_size, -1])), dim=-1)
+        action_out = self.action_mlp(memory_observation)
 
         # Write output to tensordict
         tensordict.set(self.out_keys[0], action_out)
