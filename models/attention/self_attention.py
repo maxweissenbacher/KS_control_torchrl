@@ -6,7 +6,7 @@ from tensordict.nn import InteractionType, TensorDictModule, TensorDictSequentia
 from tensordict.tensordict import TensorDict, TensorDictBase
 from tensordict.tensordict import NO_DEFAULT
 from torchrl.modules import MLP
-#from models.memoryless.base import tqc_critic_net
+from models.memoryless.base import tqc_critic_net
 
 
 class MapToQKV(Module):
@@ -153,8 +153,8 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
             attention_mlp_depth=self.attention_mlp_depth,
             device=self.device,
         )
-        self.forget_gate = Gate(input_size=self.observation_size, size_memory=self.size_memory)
-        self.input_gate = Gate(input_size=self.observation_size, size_memory=self.size_memory)
+        self.forget_gate = Gate(input_size=self.size_memory, size_memory=self.size_memory)
+        self.input_gate = Gate(input_size=self.size_memory, size_memory=self.size_memory)
 
     def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
         defaults = [NO_DEFAULT, NO_DEFAULT]  # We want to get an error if either memory or value are missing.
@@ -169,16 +169,16 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
         observation_feature = self.feature(observation)
 
         # Input and forget gates
-        forget_gate = self.forget_gate(memory, observation)
-        input_gate = self.input_gate(memory, observation)
+        forget_gate = self.forget_gate(memory, observation_feature)
+        input_gate = self.input_gate(memory, observation_feature)
 
         # Compute memory update
         next_memory = self.attention(memory, observation_feature)
         next_memory = forget_gate * memory + input_gate * nn.Tanh()(next_memory)
 
         # Compute the "action" (whatever is processed into the action) for this step
-        # This uses the current observation and memory state
-        memory_observation = torch.cat((memory.view([*batch_size, -1]), observation.view([*batch_size, -1])), dim=-1)
+        # This uses the observation and memory state
+        memory_observation = torch.cat((next_memory.view([*batch_size, -1]), observation.view([*batch_size, -1])), dim=-1)
         action_out = self.action_mlp(memory_observation)
 
         # Write output to tensordict
@@ -188,20 +188,73 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
         return tensordict
 
 
-"""
 class SelfAttentionMemoryCritic(TensorDictModuleBase):
-    def __init__(self, cfg, in_keys=None, out_keys=None):
+    def __init__(self, cfg, action_spec, in_keys=None, out_keys=None):
         super().__init__()
         if out_keys is None:
-            out_keys = ["state_action_value"]
+            out_keys = ["state_action_value", ("next", "memory")]
         if in_keys is None:
-            in_keys = ["observation", "action"]
+            in_keys = ["observation", "action", "memory"]
+        assert (out_keys[1][1] == in_keys[2])
+
+        self.memory_key = in_keys[2]
         self.in_keys = in_keys
         self.out_keys = out_keys
 
-        self.net = tqc_critic_net(cfg)
+        self.num_memories = cfg.network.attention.num_memories
+        self.size_memory = cfg.network.attention.size_memory
+        self.action_spec = action_spec
+        self.n_heads = cfg.network.attention.n_heads
+        self.attention_mlp_depth = cfg.network.attention.attention_mlp_depth
+        self.observation_size = cfg.env.num_sensors
+        self.device = cfg.network.device
+
+        self.critic_net = tqc_critic_net(cfg)
+
+        self.feature = MLP(
+            num_cells=[128, 128],
+            out_features=self.size_memory,
+            activation_class=nn.ReLU,
+            device=self.device
+        )
+        self.attention = SelfAttentionLayer(
+            size_memory=self.size_memory,
+            n_head=self.n_heads,
+            attention_mlp_depth=self.attention_mlp_depth,
+            device=self.device,
+        )
+        self.forget_gate = Gate(input_size=self.size_memory, size_memory=self.size_memory)
+        self.input_gate = Gate(input_size=self.size_memory, size_memory=self.size_memory)
 
     def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
-        return None
-"""
+        defaults = [NO_DEFAULT, NO_DEFAULT, NO_DEFAULT]
+        is_init = tensordict.get("is_init").squeeze(-1)
+        observation, action, memory = (
+            tensordict.get(key, default)
+            for key, default in zip(self.in_keys, defaults)
+        )
+        batch_size = is_init.size()
+        observation_action = torch.cat((observation.view([*batch_size, -1]), action.view([*batch_size, -1])), dim=-1)
+
+        # Preprocess the observation into a vector of the right size for the memory
+        observation_action_feature = self.feature(observation_action)
+
+        # Input and forget gates
+        forget_gate = self.forget_gate(memory, observation_action_feature)
+        input_gate = self.input_gate(memory, observation_action_feature)
+
+        # Compute memory update
+        next_memory = self.attention(memory, observation_action_feature)
+        next_memory = forget_gate * memory + input_gate * nn.Tanh()(next_memory)
+
+        # Compute the "action" (whatever is processed into the action) for this step
+        # This uses the current observation and memory state
+        memory_observation_action = torch.cat((next_memory.view([*batch_size, -1]), observation_action), dim=-1)
+        state_action_value = self.critic_net(memory_observation_action)
+
+        # Write output to tensordict
+        tensordict.set(self.out_keys[0], state_action_value)
+        tensordict.set(self.out_keys[1], next_memory)
+
+        return tensordict
 
