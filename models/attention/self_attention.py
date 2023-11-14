@@ -98,6 +98,21 @@ class SelfAttentionLayer(Module):
         x += x_  # Residual connection
         return x
 
+
+class Gate(Module):
+    def __init__(self, input_size, size_memory):
+        super().__init__()
+        self.linear_input = Linear(in_features=input_size, out_features=size_memory, bias=False)
+        self.linear_memory = Linear(in_features=size_memory, out_features=size_memory, bias=True)
+        self.sigmoid = nn.Sigmoid()
+        self.tanh = nn.Tanh()
+
+    def forward(self, memory, input):
+        input_transformed = torch.unsqueeze(self.linear_input(input), dim=-2)
+        memory_transformed = self.linear_memory(self.tanh(memory))
+        return self.sigmoid(input_transformed + memory_transformed)
+
+
 class SelfAttentionMemoryActor(TensorDictModuleBase):
     def __init__(self, cfg, action_spec, in_keys=None, out_keys=None):
         super().__init__()
@@ -117,6 +132,7 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
         self.batch_size = action_spec
         self.n_heads = cfg.network.attention.n_heads
         self.attention_mlp_depth = cfg.network.attention.attention_mlp_depth
+        self.observation_size = cfg.env.num_sensors
         self.device = cfg.network.device
 
         print('stop here')
@@ -162,6 +178,9 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
             device=self.device,
         )
 
+        self.forget_gate = Gate(input_size=self.observation_size, size_memory=self.size_memory)
+        self.input_gate = Gate(input_size=self.observation_size, size_memory=self.size_memory)
+
     def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
         defaults = [NO_DEFAULT, NO_DEFAULT]  # We want to get an error if either memory or value are missing.
         is_init = tensordict.get("is_init").squeeze(-1)
@@ -180,15 +199,13 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
         # Preprocess the observation into a vector of the right size for the memory
         observation_feature = self.feature(observation)
 
-        # Compute proposed memory update
-        memory_update = self.attention(memory, observation_feature)
-        # memory_update = memory
+        # Input and forget gates
+        forget_gate = self.forget_gate(memory, observation)
+        input_gate = self.input_gate(memory, observation)
 
-        # Now conduct the ACTUAL memory update (i.e. autoregression, LSTM where input is proposed update and
-        # output is real update, the special LSTM architecture from the Deepmind paper, ...)
-        # For now, simple autoregressive update for memory:
-        alpha = 1.0
-        next_memory = (1-alpha) * memory + alpha * memory_update
+        # Compute memory update
+        next_memory = self.attention(memory, observation_feature)
+        next_memory = forget_gate * memory + input_gate * nn.Tanh()(next_memory)
 
         # Write output to tensordict
         tensordict.set(self.out_keys[0], action_out)
