@@ -117,9 +117,9 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
     def __init__(self, cfg, action_spec, in_keys=None, out_keys=None):
         super().__init__()
         if out_keys is None:
-            out_keys = ["_actor_net_out", ("next", "memory")]
+            out_keys = ["_actor_net_out", ("next", str(cfg.network.attention.actor_memory_key))]
         if in_keys is None:
-            in_keys = ["observation", "memory"]
+            in_keys = ["observation", str(cfg.network.attention.actor_memory_key)]
         assert(out_keys[1][1] == in_keys[1])
 
         self.memory_key = in_keys[1]
@@ -192,9 +192,9 @@ class SelfAttentionMemoryCritic(TensorDictModuleBase):
     def __init__(self, cfg, action_spec, in_keys=None, out_keys=None):
         super().__init__()
         if out_keys is None:
-            out_keys = ["state_action_value", ("next", "memory")]
+            out_keys = ["state_action_value", ("next", str(cfg.network.attention.critic_memory_key))]
         if in_keys is None:
-            in_keys = ["observation", "action", "memory"]
+            in_keys = ["observation", "action", str(cfg.network.attention.critic_memory_key)]
         assert (out_keys[1][1] == in_keys[2])
 
         self.memory_key = in_keys[2]
@@ -210,7 +210,6 @@ class SelfAttentionMemoryCritic(TensorDictModuleBase):
         self.device = cfg.network.device
 
         self.critic_net = tqc_critic_net(cfg)
-
         self.feature = MLP(
             num_cells=[128, 128],
             out_features=self.size_memory,
@@ -247,8 +246,7 @@ class SelfAttentionMemoryCritic(TensorDictModuleBase):
         next_memory = self.attention(memory, observation_action_feature)
         next_memory = forget_gate * memory + input_gate * nn.Tanh()(next_memory)
 
-        # Compute the "action" (whatever is processed into the action) for this step
-        # This uses the current observation and memory state
+        # Compute the critic output from memory, observation and action
         memory_observation_action = torch.cat((next_memory.view([*batch_size, -1]), observation_action), dim=-1)
         state_action_value = self.critic_net(memory_observation_action)
 

@@ -51,7 +51,12 @@ def make_ks_env(cfg):
         transform_list.append(
             TensorDictPrimer(
                 {
-                    str(cfg.network.attention.memory_key): UnboundedContinuousTensorSpec(
+                    str(cfg.network.attention.actor_memory_key): UnboundedContinuousTensorSpec(
+                        shape=(cfg.network.attention.num_memories, cfg.network.attention.size_memory),
+                        dtype=torch.float32,
+                        device=cfg.collector.collector_device,
+                    ),
+                    str(cfg.network.attention.critic_memory_key): UnboundedContinuousTensorSpec(
                         shape=(cfg.network.attention.num_memories, cfg.network.attention.size_memory),
                         dtype=torch.float32,
                         device=cfg.collector.collector_device,
