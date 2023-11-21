@@ -70,19 +70,12 @@ def make_ks_env(cfg):
         )
     # For the buffer memory, append the Buffer Transforms
     if cfg.network.architecture == 'buffer':
-        """transform_list.append(UnsqueezeTransform(unsqueeze_dim=-1, in_keys=["observation"]))"""
         transform_list.append(
-            CatFrames(dim=-1, N=10, in_keys=["observation"], out_keys=[str(cfg.network.buffer.buffer_observation_key)])
+            CatFrames(dim=-1,
+                      N=int(cfg.network.buffer.size),
+                      in_keys=["observation"],
+                      out_keys=[str(cfg.network.buffer.buffer_observation_key)])
         )
-        """
-        transform_list.append(
-            FlattenObservation(
-                first_dim=-2,
-                last_dim=-1,
-                in_keys=["observation"],
-            )
-        )
-        """
     env_transforms = Compose(*transform_list)
 
     # Set environment hyperparameters
@@ -151,20 +144,21 @@ def make_replay_buffer(cfg, prefetch=3):
 
     # Transforms for replay buffer
     transform_list = []
+    buffer_observation_key = str(cfg.network.buffer.buffer_observation_key)
     if cfg.network.architecture == 'buffer':
         transform_list.append(
             CatFrames(
                 dim=-1,
-                N=10,
+                N=int(cfg.network.buffer.size),
                 in_keys=["observation", ("next", "observation")],
-                out_keys=[str(cfg.network.buffer.buffer_observation_key), ("next", str(cfg.network.buffer.buffer_observation_key))]
+                out_keys=[buffer_observation_key, ("next", buffer_observation_key)]
             )
         )
         transform_list.append(
             FlattenObservation(
                 first_dim=-2,
                 last_dim=-1,
-                in_keys=[str(cfg.network.buffer.buffer_observation_key), ("next", str(cfg.network.buffer.buffer_observation_key))],
+                in_keys=[buffer_observation_key, ("next", buffer_observation_key)],
             )
         )
     rpb_transforms = Compose(*transform_list)

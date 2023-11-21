@@ -68,6 +68,7 @@ network:
     initialise_random_memory: True  # If True, initialise memory entries from a unit Gaussian. If False, set to 0.
   buffer:
     buffer_observation_key: _observation_buffer
+    size: 10
 
 # logging
 logger:
