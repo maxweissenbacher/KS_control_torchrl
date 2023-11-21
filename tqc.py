@@ -10,13 +10,14 @@ import torch
 import torch.cuda
 import tqdm
 import numpy as np
-import yaml
 from tensordict import TensorDict
 from torchrl.envs.utils import ExplorationType, set_exploration_type
+import wandb
 
 from torchrl.record.loggers import generate_exp_name
 from utils import (
-    log_metrics_2,
+    log_metrics_offline,
+    log_metrics_wandb,
     make_collector,
     make_loss_module,
     make_replay_buffer,
@@ -29,13 +30,19 @@ from utils import (
 @hydra.main(version_base="1.1", config_path="", config_name="config")
 def main(cfg: "DictConfig"):  # noqa: F821
 
-    LOGGING_TO_CONSOLE = True
-    torch.autograd.set_detect_anomaly(True)
-    print('here')
+    LOGGING_TO_CONSOLE = False
+    LOGGING_WANDB = True
+    # torch.autograd.set_detect_anomaly(True)
 
     # Create logger
-    exp_name = generate_exp_name("TQC", cfg.env.exp_name)
+    exp_name = generate_exp_name("TQC_" + str(cfg.network.architecture), cfg.env.exp_name)
     logs = {}
+    if LOGGING_WANDB:
+        wandb.init(
+            mode="offline",
+            project="KS_control",
+            name=exp_name,
+        )
 
     print('Starting experiment ' + exp_name)
 
@@ -47,8 +54,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
 
     # Create agent
     model, exploration_policy = make_tqc_agent(cfg, train_env, eval_env)
-
-    print('stop here')
 
     # TO-DO: Add optional tensordict primer
     #train_env.append_transform(lstm.make_tensordict_primer())
@@ -67,8 +72,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
         buffer_scratch_dir=cfg.replay_buffer.scratch_dir,
         device=cfg.network.device,
     )
-
-    print('stop here')
 
     # Create optimizers
     (
@@ -93,8 +96,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
     eval_iter = cfg.logger.eval_iter // cfg.env.frame_skip
     frames_per_batch = cfg.collector.frames_per_batch // cfg.env.frame_skip
     eval_rollout_steps = cfg.env.max_episode_steps // cfg.env.frame_skip
-
-    #print('stop here before commencing training loop')
 
     sampling_start = time.time()
     for i, tensordict in enumerate(collector):
@@ -174,8 +175,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
         )
         episode_rewards = tensordict["next", "episode_reward"][episode_end]
 
-        #print('stop here')
-
         # Logging
         metrics_to_log = {}
         if len(episode_rewards) > 0:
@@ -222,18 +221,23 @@ def main(cfg: "DictConfig"):  # noqa: F821
                 metrics_to_log["eval/time"] = eval_time
 
         if LOGGING_TO_CONSOLE:
-            log_metrics_2(logs, metrics_to_log)
+            log_metrics_offline(logs, metrics_to_log)
+        if LOGGING_WANDB:
+            log_metrics_wandb(metrics=metrics_to_log, step=collected_frames)
 
         sampling_start = time.time()
 
     collector.shutdown()
 
     # Save logs to file
-    desc_string = '_' + cfg.logger.filename if cfg.logger.filename is not None else ''
-    filename = 'logs' + desc_string + f'_NU00{100*cfg.env.nu:.0f}_A{cfg.env.num_actuators}_S{cfg.env.num_sensors}.pkl'
-    with open(filename, "wb") as f:
-        pickle.dump(logs, f)
-    print('Saved logs to ' + filename)
+    if LOGGING_TO_CONSOLE:
+        desc_string = '_' + cfg.logger.filename if cfg.logger.filename is not None else ''
+        filename = 'logs' + desc_string + f'_NU00{100*cfg.env.nu:.0f}_A{cfg.env.num_actuators}_S{cfg.env.num_sensors}.pkl'
+        with open(filename, "wb") as f:
+            pickle.dump(logs, f)
+        print('Saved logs to ' + filename)
+    if LOGGING_WANDB:
+        wandb.finish()
 
     end_time = time.time()
     execution_time = end_time - start_time

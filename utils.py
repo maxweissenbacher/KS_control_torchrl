@@ -30,6 +30,7 @@ from solver.KS_environment import KSenv
 from models.attention.self_attention import SelfAttentionMemoryActor, SelfAttentionMemoryCritic
 from models.lstm.lstm import lstm_actor, lstm_critic
 from models.memoryless.base import basic_tqc_actor, basic_tqc_critic
+import wandb
 
 
 # ====================================================================
@@ -423,13 +424,11 @@ def make_tqc_optimizer(cfg, loss_module):
 # ---------
 
 
-def log_metrics(logger, metrics, step):
-    for metric_name, metric_value in metrics.items():
-        logger.log_scalar(metric_name, metric_value, step)
+def log_metrics_wandb(metrics, step):
+    wandb.log(data=metrics, step=step)
 
 
-# Remove this once the logging is fixed, just for testing now
-def log_metrics_2(logs, metrics):
+def log_metrics_offline(logs, metrics):
     for metric_name, metric_value in metrics.items():
         if metric_name in logs.keys():
             logs[metric_name].append(metric_value)

@@ -70,7 +70,7 @@ network:
 # logging
 logger:
   backend: wandb
-  mode: online
+  mode: offline
   eval_iter: 25_000
   filename:
 
