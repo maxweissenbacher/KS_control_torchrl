@@ -13,7 +13,7 @@ from torch import nn, optim
 from torchrl.collectors import SyncDataCollector
 from torchrl.data import TensorDictPrioritizedReplayBuffer, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.storages import LazyMemmapStorage
-from torchrl.envs import Compose, EnvCreator, ParallelEnv, TransformedEnv
+from torchrl.envs import Compose, TransformedEnv, UnsqueezeTransform, CatFrames, FlattenObservation
 from torchrl.envs.transforms import InitTracker, RewardSum, StepCounter
 from torchrl.envs.transforms import FiniteTensorDictCheck, ObservationNorm
 from torchrl.envs.utils import ExplorationType, set_exploration_type
@@ -30,6 +30,7 @@ from solver.KS_environment import KSenv
 from models.attention.self_attention import SelfAttentionMemoryActor, SelfAttentionMemoryCritic
 from models.lstm.lstm import lstm_actor, lstm_critic
 from models.memoryless.base import basic_tqc_actor, basic_tqc_critic
+from models.buffer.buffer import buffer_tqc_actor, buffer_tqc_critic
 import wandb
 
 
@@ -67,6 +68,21 @@ def make_ks_env(cfg):
                 random=bool(cfg.network.attention.initialise_random_memory),
             )
         )
+    # For the buffer memory, append the Buffer Transforms
+    if cfg.network.architecture == 'buffer':
+        """transform_list.append(UnsqueezeTransform(unsqueeze_dim=-1, in_keys=["observation"]))"""
+        transform_list.append(
+            CatFrames(dim=-1, N=10, in_keys=["observation"], out_keys=[str(cfg.network.buffer.buffer_observation_key)])
+        )
+        """
+        transform_list.append(
+            FlattenObservation(
+                first_dim=-2,
+                last_dim=-1,
+                in_keys=["observation"],
+            )
+        )
+        """
     env_transforms = Compose(*transform_list)
 
     # Set environment hyperparameters
@@ -127,25 +143,44 @@ def make_collector(cfg, train_env, actor_model_explore):
     return collector
 
 
-def make_replay_buffer(
-        batch_size,
-        prb=False,
-        buffer_size=1000000,
-        buffer_scratch_dir=None,
-        device="cpu",
-        prefetch=3,
-):
+def make_replay_buffer(cfg, prefetch=3):
+    batch_size = cfg.optim.batch_size
+    buffer_size = cfg.replay_buffer.size // cfg.env.frame_skip
+    buffer_scratch_dir = cfg.replay_buffer.scratch_dir
+    device = cfg.network.device
+
+    # Transforms for replay buffer
+    transform_list = []
+    if cfg.network.architecture == 'buffer':
+        transform_list.append(
+            CatFrames(
+                dim=-1,
+                N=10,
+                in_keys=["observation", ("next", "observation")],
+                out_keys=[str(cfg.network.buffer.buffer_observation_key), ("next", str(cfg.network.buffer.buffer_observation_key))]
+            )
+        )
+        transform_list.append(
+            FlattenObservation(
+                first_dim=-2,
+                last_dim=-1,
+                in_keys=[str(cfg.network.buffer.buffer_observation_key), ("next", str(cfg.network.buffer.buffer_observation_key))],
+            )
+        )
+    rpb_transforms = Compose(*transform_list)
+
     with (
             tempfile.TemporaryDirectory()
             if buffer_scratch_dir is None
             else nullcontext(buffer_scratch_dir)
     ) as scratch_dir:
-        if prb:
+        if cfg.replay_buffer.prb:
             replay_buffer = TensorDictPrioritizedReplayBuffer(
                 alpha=0.7,
                 beta=0.5,
                 pin_memory=False,
                 prefetch=prefetch,
+                transform=rpb_transforms,
                 storage=LazyMemmapStorage(
                     buffer_size,
                     scratch_dir=scratch_dir,
@@ -157,6 +192,7 @@ def make_replay_buffer(
             replay_buffer = TensorDictReplayBuffer(
                 pin_memory=False,
                 prefetch=prefetch,
+                transform=rpb_transforms,
                 storage=LazyMemmapStorage(
                     buffer_size,
                     scratch_dir=scratch_dir,
@@ -165,21 +201,6 @@ def make_replay_buffer(
                 batch_size=batch_size,
             )
         return replay_buffer
-
-
-# ====================================================================
-# Actor architectures
-# -------------------
-
-
-def buffer_memory_actor(cfg, in_keys, out_keys, action_spec):
-    # How do we reset the buffer when we reset the env?
-    # We have the 'InitTracker' to tell us when env has been reset
-
-    # Probably this needs to be a custom TensorDictModule or TensorDictModuleBase
-    # subclass, and you can reset in the forward() method (like in LSTMModule)
-
-    return None
 
 
 # ====================================================================
@@ -204,6 +225,8 @@ def make_tqc_agent(cfg, train_env, eval_env):
         actor_net = lstm_actor(cfg, action_spec)
     elif cfg.network.architecture == 'attention':
         actor_net = SelfAttentionMemoryActor(cfg, action_spec)
+    elif cfg.network.architecture == 'buffer':
+        actor_net = buffer_tqc_actor(cfg, action_spec)
 
     actor_extractor = TensorDictModule(
         NormalParamExtractor(
@@ -238,6 +261,8 @@ def make_tqc_agent(cfg, train_env, eval_env):
         critic = lstm_critic(cfg)
     if cfg.network.architecture == 'attention':
         critic = SelfAttentionMemoryCritic(cfg, action_spec)
+    if cfg.network.architecture == 'buffer':
+        critic = buffer_tqc_critic(cfg)
 
     model = nn.ModuleList([actor, critic]).to(device)
 

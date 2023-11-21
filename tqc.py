@@ -65,13 +65,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
     collector = make_collector(cfg, train_env, exploration_policy)
 
     # Create replay buffer
-    replay_buffer = make_replay_buffer(
-        batch_size=cfg.optim.batch_size,
-        prb=cfg.replay_buffer.prb,
-        buffer_size=cfg.replay_buffer.size // cfg.env.frame_skip,
-        buffer_scratch_dir=cfg.replay_buffer.scratch_dir,
-        device=cfg.network.device,
-    )
+    replay_buffer = make_replay_buffer(cfg)
 
     # Create optimizers
     (
@@ -131,8 +125,8 @@ def main(cfg: "DictConfig"):  # noqa: F821
                 # Sample from replay buffer
                 sampled_tensordict = replay_buffer.sample().clone()
 
-                #print(sampled_tensordict)
-                #print('stop here')
+                # print(sampled_tensordict)
+                # print('stop here')
 
                 # Compute loss
                 loss_td = loss_module(sampled_tensordict)
