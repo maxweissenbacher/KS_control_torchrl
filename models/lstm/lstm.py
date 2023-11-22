@@ -106,7 +106,7 @@ def lstm_critic(cfg, in_keys=None, out_keys=None):
     )
 
     tqc_critic_mlp = TensorDictModule(
-        tqc_critic_net(cfg),
+        tqc_critic_net(cfg, model='lstm'),
         in_keys=[lstm_key, state_action_embed_key],
         out_keys=out_keys,
     )

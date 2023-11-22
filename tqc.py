@@ -55,9 +55,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
     # Create agent
     model, exploration_policy = make_tqc_agent(cfg, train_env, eval_env)
 
-    # TO-DO: Add optional tensordict primer
-    #train_env.append_transform(lstm.make_tensordict_primer())
-
     # Create SAC loss
     loss_module, target_net_updater = make_loss_module(cfg, model)
 
@@ -90,6 +87,8 @@ def main(cfg: "DictConfig"):  # noqa: F821
     eval_iter = cfg.logger.eval_iter // cfg.env.frame_skip
     frames_per_batch = cfg.collector.frames_per_batch // cfg.env.frame_skip
     eval_rollout_steps = cfg.env.max_episode_steps // cfg.env.frame_skip
+
+    print('stop here')
 
     sampling_start = time.time()
     for i, tensordict in enumerate(collector):

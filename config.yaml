@@ -40,7 +40,7 @@ optim:
 
 # network
 network:
-  architecture: buffer  # one of base, lstm, attention, buffer
+  architecture: lstm  # one of base, lstm, attention, buffer
   actor_hidden_sizes: [256, 256]
   critic_hidden_sizes: [512, 512, 512]
   n_quantiles: 25
@@ -51,23 +51,26 @@ network:
   scale_lb: 0.1
   device: cpu
   lstm:
-    hidden_size: 512
-    final_net_sizes: [256]
-    preprocessing_mlp_sizes: [256, 256]
-    feature_size: 64
+    hidden_size: 128
+    final_net_sizes: [128, 128]
+    preprocessing_mlp_sizes: [128]
+    feature_size: 128
+    critic_hidden_sizes: [128]
+    n_quantiles: 25
+    n_nets: 5
   attention:
     actor_mlp_hidden_sizes: [128]
     critic_mlp_hidden_sizes: [256, 256]
     n_nets: 5  # Number of critic nets
     num_memories: 10
     size_memory: 25
-    n_heads: 5
+    n_heads: 1
     attention_mlp_depth: 2  # this is default value in deepmind paper
-    actor_memory_key: _actor_memory  # name of the key under which the actor memory is stored in tensordict
-    critic_memory_key: _critic_memory  # name of the key under which the critic memory is stored in tensordict
+    actor_memory_key: actor_memory  # name of the key under which the actor memory is stored in tensordict
+    critic_memory_key: critic_memory  # name of the key under which the critic memory is stored in tensordict
     initialise_random_memory: True  # If True, initialise memory entries from a unit Gaussian. If False, set to 0.
   buffer:
-    buffer_observation_key: _observation_buffer
+    buffer_observation_key: observation_buffer
     size: 10
 
 # logging

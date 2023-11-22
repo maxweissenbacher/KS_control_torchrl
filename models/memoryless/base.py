@@ -24,16 +24,24 @@ def basic_tqc_actor(cfg, action_spec, in_keys=None, out_keys=None):
 
 
 class tqc_critic_net(nn.Module):
-    def __init__(self, cfg):
+    def __init__(self, cfg, model=None):
         super().__init__()
         activation = nn.ReLU
         self.nets = []
+        if model is None:  # Memoryless base model
+            critic_hidden_sizes = cfg.network.critic_hidden_sizes
+            n_quantiles = cfg.network.n_quantiles
+            n_nets = cfg.network.n_nets
+        elif model == 'lstm':  # LSTM model
+            critic_hidden_sizes = cfg.network.lstm.critic_hidden_sizes
+            n_quantiles = cfg.network.lstm.n_quantiles
+            n_nets = cfg.network.lstm.n_nets
         qvalue_net_kwargs = {
-            "num_cells": cfg.network.critic_hidden_sizes,
-            "out_features": cfg.network.n_quantiles,
+            "num_cells": critic_hidden_sizes,
+            "out_features": n_quantiles,
             "activation_class": activation,
         }
-        for i in range(cfg.network.n_nets):
+        for i in range(n_nets):
             net = MLP(**qvalue_net_kwargs)
             self.add_module(f'critic_net_{i}', net)
             self.nets.append(net)
