@@ -129,7 +129,6 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
         self.num_memories = cfg.network.attention.num_memories
         self.size_memory = cfg.network.attention.size_memory
         self.action_spec = action_spec
-        self.batch_size = action_spec
         self.n_heads = cfg.network.attention.n_heads
         self.attention_mlp_depth = cfg.network.attention.attention_mlp_depth
         self.observation_size = cfg.env.num_sensors
@@ -141,12 +140,15 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
             activation_class=nn.ReLU,
             device=self.device
         )
+        """
         self.feature = MLP(
             num_cells=[128, 128],
             out_features=self.size_memory,
             activation_class=nn.ReLU,
             device=self.device
         )
+        """
+        self.feature = Linear(in_features=self.observation_size, out_features=self.size_memory)
         self.attention = SelfAttentionLayer(
             size_memory=self.size_memory,
             n_head=self.n_heads,
@@ -207,15 +209,19 @@ class SelfAttentionMemoryCritic(TensorDictModuleBase):
         self.n_heads = cfg.network.attention.n_heads
         self.attention_mlp_depth = cfg.network.attention.attention_mlp_depth
         self.observation_size = cfg.env.num_sensors
+        self.num_actions = cfg.env.num_actuators
         self.device = cfg.network.device
 
-        self.critic_net = tqc_critic_net(cfg)
+        self.critic_net = tqc_critic_net(cfg, model='attention')
+        """
         self.feature = MLP(
             num_cells=[128, 128],
             out_features=self.size_memory,
             activation_class=nn.ReLU,
             device=self.device
         )
+        """
+        self.feature = Linear(in_features=self.observation_size+self.num_actions, out_features=self.size_memory)
         self.attention = SelfAttentionLayer(
             size_memory=self.size_memory,
             n_head=self.n_heads,

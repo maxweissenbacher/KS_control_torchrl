@@ -36,6 +36,10 @@ class tqc_critic_net(nn.Module):
             critic_hidden_sizes = cfg.network.lstm.critic_hidden_sizes
             n_quantiles = cfg.network.lstm.n_quantiles
             n_nets = cfg.network.lstm.n_nets
+        elif model == 'attention':  # Attention model
+            critic_hidden_sizes = cfg.network.attention.critic_hidden_sizes
+            n_quantiles = cfg.network.attention.n_quantiles
+            n_nets = cfg.network.attention.n_nets
         qvalue_net_kwargs = {
             "num_cells": critic_hidden_sizes,
             "out_features": n_quantiles,
