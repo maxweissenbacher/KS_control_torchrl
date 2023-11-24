@@ -91,6 +91,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
     print('stop here')
 
     sampling_start = time.time()
+    train_start_time = sampling_start
     for i, tensordict in enumerate(collector):
 
         sampling_time = time.time() - sampling_start
@@ -106,7 +107,10 @@ def main(cfg: "DictConfig"):  # noqa: F821
         # Console update
         # pbar.update(tensordict.numel())
         if collected_frames % (cfg.collector.total_frames // (cfg.env.frame_skip * num_console_updates)) == 0:
-            print(f'Frame {collected_frames}/{cfg.collector.total_frames // cfg.env.frame_skip}')
+            console_output = f'Frame {collected_frames}/{cfg.collector.total_frames // cfg.env.frame_skip}'
+            time_passed = time.time() - train_start_time
+            console_output += f' | {time_passed/60:.0f} min' if time_passed/60 > 1 else f' | <1 min'
+            print(console_output)
 
         # Optimization steps
         training_start = time.time()
@@ -124,8 +128,8 @@ def main(cfg: "DictConfig"):  # noqa: F821
                 # Sample from replay buffer
                 sampled_tensordict = replay_buffer.sample().clone()
 
-                # print(sampled_tensordict)
-                # print('stop here')
+                #print(sampled_tensordict)
+                #print('stop here')
 
                 # Compute loss
                 loss_td = loss_module(sampled_tensordict)
