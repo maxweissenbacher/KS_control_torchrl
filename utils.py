@@ -34,6 +34,12 @@ from models.buffer.buffer import buffer_tqc_actor, buffer_tqc_critic
 import wandb
 
 
+def network_device(cfg):
+    if cfg.network.auto_detect_device:
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        return torch.device(str(cfg.network.device))
+
 # ====================================================================
 # Environment utils
 # -----------------
@@ -74,6 +80,12 @@ def make_ks_env(cfg):
             CatFrames(dim=-1,
                       N=int(cfg.network.buffer.size),
                       in_keys=["observation"],
+                      out_keys=[str(cfg.network.buffer.buffer_observation_key)])
+        )
+        transform_list.append(
+            CatFrames(dim=-1,
+                      N=int(cfg.network.buffer.size),
+                      in_keys=["action"],
                       out_keys=[str(cfg.network.buffer.buffer_observation_key)])
         )
     env_transforms = Compose(*transform_list)
@@ -140,7 +152,7 @@ def make_replay_buffer(cfg, prefetch=3):
     batch_size = cfg.optim.batch_size
     buffer_size = cfg.replay_buffer.size // cfg.env.frame_skip
     buffer_scratch_dir = cfg.replay_buffer.scratch_dir
-    device = cfg.network.device
+    device = network_device(cfg)
 
     # Transforms for replay buffer
     transform_list = []
@@ -204,7 +216,7 @@ def make_replay_buffer(cfg, prefetch=3):
 
 def make_tqc_agent(cfg, train_env, eval_env):
     """Make TQC agent."""
-    device = cfg.network.device
+    device = network_device(cfg)
     # Define Actor Network
     in_keys_actor = ["observation"]
     out_keys_actor = ["_actor_net_out"]
@@ -404,7 +416,7 @@ def make_loss_module(cfg, model):
     loss_module = TQCLoss(
         actor_network=model[0],
         qvalue_network=model[1],
-        device=cfg.network.device,
+        device=network_device(cfg),
         gamma=cfg.optim.gamma,
         top_quantiles_to_drop=cfg.network.top_quantiles_to_drop_per_net * cfg.network.n_nets,
         alpha_init=cfg.optim.alpha_init
