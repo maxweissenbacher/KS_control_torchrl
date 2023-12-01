@@ -2,6 +2,7 @@ from tensordict.nn import TensorDictModule, TensorDictSequential
 from torch import nn
 from torchrl.modules import MLP, LSTMModule
 from models.memoryless.base import tqc_critic_net
+from utils.device_finder import network_device
 
 
 def lstm_actor(cfg, action_spec, in_keys=None, out_keys=None):
@@ -40,7 +41,7 @@ def lstm_actor(cfg, action_spec, in_keys=None, out_keys=None):
     lstm = LSTMModule(
         input_size=cfg.network.lstm.feature_size,
         hidden_size=cfg.network.lstm.hidden_size,
-        device=cfg.network.device,
+        device=network_device(cfg),
         in_key=lstm_key,
         out_key=lstm_key,
     )
@@ -100,7 +101,7 @@ def lstm_critic(cfg, in_keys=None, out_keys=None):
     lstm = LSTMModule(
         input_size=cfg.network.lstm.feature_size,
         hidden_size=cfg.network.lstm.hidden_size,
-        device=cfg.network.device,
+        device=network_device(cfg),
         in_key=lstm_key,
         out_key=lstm_key,
     )

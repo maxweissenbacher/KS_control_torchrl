@@ -15,7 +15,7 @@ from torchrl.envs.utils import ExplorationType, set_exploration_type
 import wandb
 
 from torchrl.record.loggers import generate_exp_name
-from utils import (
+from agents import (
     log_metrics_offline,
     log_metrics_wandb,
     make_collector,
@@ -25,6 +25,7 @@ from utils import (
     make_tqc_optimizer,
     make_ks_env,
 )
+from utils.rng import env_seed
 
 
 @hydra.main(version_base="1.1", config_path="", config_name="config")
@@ -39,15 +40,15 @@ def main(cfg: "DictConfig"):  # noqa: F821
     logs = {}
     if LOGGING_WANDB:
         wandb.init(
-            mode="offline",
+            mode=str(cfg.logger.mode),
             project="KS_control",
             name=exp_name,
         )
 
     print('Starting experiment ' + exp_name)
 
-    torch.manual_seed(cfg.env.seed)
-    np.random.seed(cfg.env.seed)
+    torch.manual_seed(env_seed(cfg))
+    np.random.seed(env_seed(cfg))
 
     # Create environments
     train_env, eval_env = make_ks_env(cfg)

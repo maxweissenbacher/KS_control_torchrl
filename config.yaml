@@ -10,6 +10,7 @@ env:
   soft_action: True  # Interpolate the actions over frame_skip frames
   autoreg_action: 0.0  # Autoregressive action hyperparameter
   seed: 2253461632  # keep fixed for now
+  auto_generate_seed: True  # If True, generate a random seed. If False, use the seed value specified above.
 
 # collector
 collector:
@@ -50,6 +51,7 @@ network:
   default_policy_scale: 1.0
   scale_lb: 0.1
   device: cpu
+  auto_detect_device: True  # If True, will use GPU when available or else fall back on device specified above
   lstm:
     hidden_size: 128
     final_net_sizes: [128, 128]
@@ -64,7 +66,7 @@ network:
     n_quantiles: 25
     n_nets: 5  # Number of critic nets
     num_memories: 10
-    size_memory: 25
+    size_memory: 32
     n_heads: 1  # Number of heads of self attention layer
     attention_mlp_depth: 2  # this is default value in deepmind paper
     actor_memory_key: actor_memory  # name of the key under which the actor memory is stored in tensordict

@@ -31,6 +31,8 @@ from models.attention.self_attention import SelfAttentionMemoryActor, SelfAttent
 from models.lstm.lstm import lstm_actor, lstm_critic
 from models.memoryless.base import basic_tqc_actor, basic_tqc_critic
 from models.buffer.buffer import buffer_tqc_actor, buffer_tqc_critic
+from utils.device_finder import network_device
+from utils.rng import env_seed
 import wandb
 
 
@@ -76,6 +78,12 @@ def make_ks_env(cfg):
                       in_keys=["observation"],
                       out_keys=[str(cfg.network.buffer.buffer_observation_key)])
         )
+        transform_list.append(
+            CatFrames(dim=-1,
+                      N=int(cfg.network.buffer.size),
+                      in_keys=["action"],
+                      out_keys=[str(cfg.network.buffer.buffer_observation_key)])
+        )
     env_transforms = Compose(*transform_list)
 
     # Set environment hyperparameters
@@ -111,7 +119,7 @@ def make_ks_env(cfg):
 
     # Create environments
     train_env = TransformedEnv(KSenv(**env_params), env_transforms)
-    train_env.set_seed(cfg.env.seed)
+    train_env.set_seed(env_seed(cfg))
     eval_env = TransformedEnv(KSenv(**env_params), train_env.transform.clone())
 
     return train_env, eval_env
@@ -132,7 +140,7 @@ def make_collector(cfg, train_env, actor_model_explore):
         total_frames=cfg.collector.total_frames // cfg.env.frame_skip,
         device=cfg.collector.collector_device,
     )
-    collector.set_seed(cfg.env.seed)
+    collector.set_seed(env_seed(cfg))
     return collector
 
 
@@ -140,7 +148,7 @@ def make_replay_buffer(cfg, prefetch=3):
     batch_size = cfg.optim.batch_size
     buffer_size = cfg.replay_buffer.size // cfg.env.frame_skip
     buffer_scratch_dir = cfg.replay_buffer.scratch_dir
-    device = cfg.network.device
+    device = network_device(cfg)
 
     # Transforms for replay buffer
     transform_list = []
@@ -204,7 +212,7 @@ def make_replay_buffer(cfg, prefetch=3):
 
 def make_tqc_agent(cfg, train_env, eval_env):
     """Make TQC agent."""
-    device = cfg.network.device
+    device = network_device(cfg)
     # Define Actor Network
     in_keys_actor = ["observation"]
     out_keys_actor = ["_actor_net_out"]
@@ -404,7 +412,7 @@ def make_loss_module(cfg, model):
     loss_module = TQCLoss(
         actor_network=model[0],
         qvalue_network=model[1],
-        device=cfg.network.device,
+        device=network_device(cfg),
         gamma=cfg.optim.gamma,
         top_quantiles_to_drop=cfg.network.top_quantiles_to_drop_per_net * cfg.network.n_nets,
         alpha_init=cfg.optim.alpha_init
