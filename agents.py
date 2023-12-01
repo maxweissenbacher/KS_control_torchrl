@@ -31,14 +31,9 @@ from models.attention.self_attention import SelfAttentionMemoryActor, SelfAttent
 from models.lstm.lstm import lstm_actor, lstm_critic
 from models.memoryless.base import basic_tqc_actor, basic_tqc_critic
 from models.buffer.buffer import buffer_tqc_actor, buffer_tqc_critic
+from utils.device_finder import network_device
 import wandb
 
-
-def network_device(cfg):
-    if cfg.network.auto_detect_device:
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    else:
-        return torch.device(str(cfg.network.device))
 
 # ====================================================================
 # Environment utils

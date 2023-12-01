@@ -15,7 +15,7 @@ from torchrl.envs.utils import ExplorationType, set_exploration_type
 import wandb
 
 from torchrl.record.loggers import generate_exp_name
-from utils import (
+from agents import (
     log_metrics_offline,
     log_metrics_wandb,
     make_collector,

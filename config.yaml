@@ -10,6 +10,7 @@ env:
   soft_action: True  # Interpolate the actions over frame_skip frames
   autoreg_action: 0.0  # Autoregressive action hyperparameter
   seed: 2253461632  # keep fixed for now
+  auto_generate_seed: True  # If True, generate a random seed. If False, use the seed value specified above.
 
 # collector
 collector:

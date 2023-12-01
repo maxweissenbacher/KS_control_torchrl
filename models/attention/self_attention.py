@@ -7,6 +7,7 @@ from tensordict.tensordict import TensorDict, TensorDictBase
 from tensordict.tensordict import NO_DEFAULT
 from torchrl.modules import MLP
 from models.memoryless.base import tqc_critic_net
+from utils.device_finder import network_device
 
 
 class MapToQKV(Module):
@@ -132,7 +133,7 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
         self.n_heads = cfg.network.attention.n_heads
         self.attention_mlp_depth = cfg.network.attention.attention_mlp_depth
         self.observation_size = cfg.env.num_sensors
-        self.device = cfg.network.device
+        self.device = network_device(cfg)
 
         self.action_mlp = MLP(
             num_cells=cfg.network.attention.actor_mlp_hidden_sizes,
@@ -210,7 +211,7 @@ class SelfAttentionMemoryCritic(TensorDictModuleBase):
         self.attention_mlp_depth = cfg.network.attention.attention_mlp_depth
         self.observation_size = cfg.env.num_sensors
         self.num_actions = cfg.env.num_actuators
-        self.device = cfg.network.device
+        self.device = network_device(cfg)
 
         self.critic_net = tqc_critic_net(cfg, model='attention')
         """
