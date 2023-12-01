@@ -40,14 +40,12 @@ def main(cfg: "DictConfig"):  # noqa: F821
     logs = {}
     if LOGGING_WANDB:
         wandb.init(
-            mode="offline",
+            mode=str(cfg.logger.mode),
             project="KS_control",
             name=exp_name,
         )
 
     print('Starting experiment ' + exp_name)
-
-    print(env_seed(cfg))
 
     torch.manual_seed(env_seed(cfg))
     np.random.seed(env_seed(cfg))
