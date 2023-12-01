@@ -32,6 +32,7 @@ from models.lstm.lstm import lstm_actor, lstm_critic
 from models.memoryless.base import basic_tqc_actor, basic_tqc_critic
 from models.buffer.buffer import buffer_tqc_actor, buffer_tqc_critic
 from utils.device_finder import network_device
+from utils.rng import env_seed
 import wandb
 
 
@@ -118,7 +119,7 @@ def make_ks_env(cfg):
 
     # Create environments
     train_env = TransformedEnv(KSenv(**env_params), env_transforms)
-    train_env.set_seed(cfg.env.seed)
+    train_env.set_seed(env_seed(cfg))
     eval_env = TransformedEnv(KSenv(**env_params), train_env.transform.clone())
 
     return train_env, eval_env
@@ -139,7 +140,7 @@ def make_collector(cfg, train_env, actor_model_explore):
         total_frames=cfg.collector.total_frames // cfg.env.frame_skip,
         device=cfg.collector.collector_device,
     )
-    collector.set_seed(cfg.env.seed)
+    collector.set_seed(env_seed(cfg))
     return collector
 
 

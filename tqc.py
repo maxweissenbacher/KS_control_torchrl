@@ -25,6 +25,7 @@ from agents import (
     make_tqc_optimizer,
     make_ks_env,
 )
+from utils.rng import env_seed
 
 
 @hydra.main(version_base="1.1", config_path="", config_name="config")
@@ -46,8 +47,10 @@ def main(cfg: "DictConfig"):  # noqa: F821
 
     print('Starting experiment ' + exp_name)
 
-    torch.manual_seed(cfg.env.seed)
-    np.random.seed(cfg.env.seed)
+    print(env_seed(cfg))
+
+    torch.manual_seed(env_seed(cfg))
+    np.random.seed(env_seed(cfg))
 
     # Create environments
     train_env, eval_env = make_ks_env(cfg)
