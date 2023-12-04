@@ -28,6 +28,7 @@ from torchrl.data import UnboundedContinuousTensorSpec
 from typing import Tuple
 from solver.KS_environment import KSenv
 from models.attention.self_attention import SelfAttentionMemoryActor, SelfAttentionMemoryCritic
+from models.attention.self_attention_onememory import SelfAttentionMemoryActor2, SelfAttentionMemoryCritic2
 from models.lstm.lstm import lstm_actor, lstm_critic
 from models.gru.gru import gru_actor, gru_critic
 from models.memoryless.base import basic_tqc_actor, basic_tqc_critic
@@ -71,6 +72,24 @@ def make_ks_env(cfg):
                 random=bool(cfg.network.attention.initialise_random_memory),
             )
         )
+
+    # THIS IS ONLY FOR SELF ATTENTION MEMORY WITH ONE SHARED MEMORY
+    # For the self attention memory with one memory, add a TensorDictPrimer
+    if cfg.network.architecture == 'attention2':
+        transform_list.append(
+            TensorDictPrimer(
+                {
+                    str(cfg.network.attention.critic_memory_key): UnboundedContinuousTensorSpec(
+                        shape=(cfg.network.attention.num_memories, cfg.network.attention.size_memory),
+                        dtype=torch.float32,
+                        device=cfg.collector.collector_device,
+                    ),
+                },
+                default_value=0.0,
+                random=bool(cfg.network.attention.initialise_random_memory),
+            )
+        )
+
     # For the buffer memory, append the Buffer Transforms
     if cfg.network.architecture == 'buffer':
         transform_list.append(
@@ -230,6 +249,8 @@ def make_tqc_agent(cfg, train_env, eval_env):
         actor_net = gru_actor(cfg, action_spec)
     elif cfg.network.architecture == 'attention':
         actor_net = SelfAttentionMemoryActor(cfg, action_spec)
+    elif cfg.network.architecture == 'attention2':
+        actor_net = SelfAttentionMemoryActor2(cfg, action_spec)
     elif cfg.network.architecture == 'buffer':
         actor_net = buffer_tqc_actor(cfg, action_spec)
 
@@ -268,6 +289,8 @@ def make_tqc_agent(cfg, train_env, eval_env):
         critic = gru_critic(cfg)
     if cfg.network.architecture == 'attention':
         critic = SelfAttentionMemoryCritic(cfg, action_spec)
+    if cfg.network.architecture == 'attention2':
+        critic = SelfAttentionMemoryCritic2(cfg, action_spec)
     if cfg.network.architecture == 'buffer':
         critic = buffer_tqc_critic(cfg)
 
