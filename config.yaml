@@ -81,6 +81,7 @@ logger:
   backend: wandb
   mode: offline
   eval_iter: 25_000
+  project_name: KS_control_LSTM
   filename:
 
 # Disable output subdirectory

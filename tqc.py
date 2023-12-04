@@ -41,7 +41,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
     if LOGGING_WANDB:
         wandb.init(
             mode=str(cfg.logger.mode),
-            project="KS_control",
+            project=str(cfg.logger.project_name),
             name=exp_name,
         )
 
