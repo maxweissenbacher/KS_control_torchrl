@@ -41,7 +41,7 @@ optim:
 
 # network
 network:
-  architecture: attention  # one of base, lstm, attention, buffer
+  architecture: gru  # one of base, lstm, attention, buffer, gru
   actor_hidden_sizes: [256, 256]
   critic_hidden_sizes: [512, 512, 512]
   n_quantiles: 25
@@ -57,7 +57,7 @@ network:
     final_net_sizes: [128, 128]
     preprocessing_mlp_sizes: [128]
     feature_size: 128
-    critic_hidden_sizes: [128]
+    critic_hidden_sizes: [512, 512]
     n_quantiles: 25
     n_nets: 5
   attention:

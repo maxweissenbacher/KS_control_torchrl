@@ -29,6 +29,7 @@ from typing import Tuple
 from solver.KS_environment import KSenv
 from models.attention.self_attention import SelfAttentionMemoryActor, SelfAttentionMemoryCritic
 from models.lstm.lstm import lstm_actor, lstm_critic
+from models.gru.gru import gru_actor, gru_critic
 from models.memoryless.base import basic_tqc_actor, basic_tqc_critic
 from models.buffer.buffer import buffer_tqc_actor, buffer_tqc_critic
 from utils.device_finder import network_device
@@ -225,6 +226,8 @@ def make_tqc_agent(cfg, train_env, eval_env):
         actor_net = basic_tqc_actor(cfg, action_spec)
     elif cfg.network.architecture == 'lstm':
         actor_net = lstm_actor(cfg, action_spec)
+    elif cfg.network.architecture == 'gru':
+        actor_net = gru_actor(cfg, action_spec)
     elif cfg.network.architecture == 'attention':
         actor_net = SelfAttentionMemoryActor(cfg, action_spec)
     elif cfg.network.architecture == 'buffer':
@@ -261,6 +264,8 @@ def make_tqc_agent(cfg, train_env, eval_env):
         critic = basic_tqc_critic(cfg)
     if cfg.network.architecture == 'lstm':
         critic = lstm_critic(cfg)
+    if cfg.network.architecture == 'gru':
+        critic = gru_critic(cfg)
     if cfg.network.architecture == 'attention':
         critic = SelfAttentionMemoryCritic(cfg, action_spec)
     if cfg.network.architecture == 'buffer':
