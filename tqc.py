@@ -39,9 +39,11 @@ def main(cfg: "DictConfig"):  # noqa: F821
     exp_name = generate_exp_name("TQC_" + str(cfg.network.architecture), cfg.env.exp_name)
     logs = {}
     if LOGGING_WANDB:
+        if cfg.logger.project_name is None:
+            raise ValueError("WandB project name must be specified in config.")
         wandb.init(
             mode=str(cfg.logger.mode),
-            project="KS_control",
+            project=str(cfg.logger.project_name),
             name=exp_name,
         )
 
