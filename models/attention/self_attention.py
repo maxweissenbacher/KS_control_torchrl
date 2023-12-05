@@ -114,6 +114,16 @@ class Gate(Module):
         return self.sigmoid(input_transformed + memory_transformed)
 
 
+class SigmoidLinear(Module):
+    def __init__(self, size_memory, init_weight):
+        super().__init__()
+        self.weights = nn.Parameter(torch.logit(init_weight * torch.eye(size_memory)))
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        return x @ self.sigmoid(self.weights)
+
+
 class SelfAttentionMemoryActor(TensorDictModuleBase):
     def __init__(self, cfg, action_spec, in_keys=None, out_keys=None):
         super().__init__()
@@ -141,15 +151,13 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
             activation_class=nn.ReLU,
             device=self.device
         )
-        """
         self.feature = MLP(
-            num_cells=[128, 128],
+            num_cells=[128],
             out_features=self.size_memory,
             activation_class=nn.ReLU,
             device=self.device
         )
-        """
-        self.feature = Linear(in_features=self.observation_size, out_features=self.size_memory)
+        # self.feature = Linear(in_features=self.observation_size, out_features=self.size_memory)
         self.attention = SelfAttentionLayer(
             size_memory=self.size_memory,
             n_head=self.n_heads,
@@ -158,6 +166,10 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
         )
         self.forget_gate = Gate(input_size=self.size_memory, size_memory=self.size_memory)
         self.input_gate = Gate(input_size=self.size_memory, size_memory=self.size_memory)
+
+        init_weight = 0.5
+        self.linear_update_previous = SigmoidLinear(size_memory=self.size_memory, init_weight=init_weight)
+        self.linear_update_new = SigmoidLinear(size_memory=self.size_memory, init_weight=1-init_weight)
 
     def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
         defaults = [NO_DEFAULT, NO_DEFAULT]  # We want to get an error if either memory or value are missing.
@@ -177,7 +189,11 @@ class SelfAttentionMemoryActor(TensorDictModuleBase):
 
         # Compute memory update
         next_memory = self.attention(memory, observation_feature)
-        next_memory = forget_gate * memory + input_gate * nn.Tanh()(next_memory)
+        next_memory = nn.Tanh()(next_memory)
+        # LSTM memory update:
+        # next_memory = forget_gate * memory + input_gate * next_memory
+        # Instead, try something simpler:
+        next_memory = self.linear_update_previous(memory) + self.linear_update_new(next_memory)
 
         # Compute the "action" (whatever is processed into the action) for this step
         # This uses the observation and memory state
@@ -214,15 +230,13 @@ class SelfAttentionMemoryCritic(TensorDictModuleBase):
         self.device = network_device(cfg)
 
         self.critic_net = tqc_critic_net(cfg, model='attention')
-        """
         self.feature = MLP(
-            num_cells=[128, 128],
+            num_cells=[128],
             out_features=self.size_memory,
             activation_class=nn.ReLU,
             device=self.device
         )
-        """
-        self.feature = Linear(in_features=self.observation_size+self.num_actions, out_features=self.size_memory)
+        # self.feature = Linear(in_features=self.observation_size+self.num_actions, out_features=self.size_memory)
         self.attention = SelfAttentionLayer(
             size_memory=self.size_memory,
             n_head=self.n_heads,
@@ -231,6 +245,10 @@ class SelfAttentionMemoryCritic(TensorDictModuleBase):
         )
         self.forget_gate = Gate(input_size=self.size_memory, size_memory=self.size_memory)
         self.input_gate = Gate(input_size=self.size_memory, size_memory=self.size_memory)
+
+        init_weight = 0.5
+        self.linear_update_previous = SigmoidLinear(size_memory=self.size_memory, init_weight=init_weight)
+        self.linear_update_new = SigmoidLinear(size_memory=self.size_memory, init_weight=1 - init_weight)
 
     def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
         defaults = [NO_DEFAULT, NO_DEFAULT, NO_DEFAULT]
@@ -251,7 +269,11 @@ class SelfAttentionMemoryCritic(TensorDictModuleBase):
 
         # Compute memory update
         next_memory = self.attention(memory, observation_action_feature)
-        next_memory = forget_gate * memory + input_gate * nn.Tanh()(next_memory)
+        next_memory = nn.Tanh()(next_memory)
+        # LSTM memory update:
+        # next_memory = forget_gate * memory + input_gate * next_memory
+        # Instead, try something simpler:
+        next_memory = self.linear_update_previous(memory) + self.linear_update_new(next_memory)
 
         # Compute the critic output from memory, observation and action
         memory_observation_action = torch.cat((next_memory.view([*batch_size, -1]), observation_action), dim=-1)
