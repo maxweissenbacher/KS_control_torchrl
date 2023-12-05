@@ -41,7 +41,7 @@ optim:
 
 # network
 network:
-  architecture: attention  # one of base, lstm, attention, buffer, gru, attention2
+  architecture: lstm  # one of base, lstm, attention, buffer, gru, attention2
   actor_hidden_sizes: [256, 256]
   critic_hidden_sizes: [512, 512, 512]
   n_quantiles: 25
@@ -53,7 +53,8 @@ network:
   device: cpu
   auto_detect_device: True  # If True, will use GPU when available or else fall back on device specified above
   lstm:
-    hidden_size: 128
+    hidden_size: 256
+    num_layers: 3
     final_net_sizes: [128, 128]
     preprocessing_mlp_sizes: [128]
     feature_size: 128

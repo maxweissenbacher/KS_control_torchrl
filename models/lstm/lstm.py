@@ -41,6 +41,7 @@ def lstm_actor(cfg, action_spec, in_keys=None, out_keys=None):
     lstm = LSTMModule(
         input_size=cfg.network.lstm.feature_size,
         hidden_size=cfg.network.lstm.hidden_size,
+        num_layers=cfg.network.lstm.num_layers,
         device=network_device(cfg),
         in_key=lstm_key,
         out_key=lstm_key,
@@ -101,6 +102,7 @@ def lstm_critic(cfg, in_keys=None, out_keys=None):
     lstm = LSTMModule(
         input_size=cfg.network.lstm.feature_size,
         hidden_size=cfg.network.lstm.hidden_size,
+        num_layers=cfg.network.lstm.num_layers,
         device=network_device(cfg),
         in_key=lstm_key,
         out_key=lstm_key,
