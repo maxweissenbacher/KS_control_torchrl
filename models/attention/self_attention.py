@@ -268,23 +268,20 @@ class SelfAttentionMemoryCritic(TensorDictModuleBase):
             device=self.device
         )
         # self.feature = Linear(in_features=self.observation_size+self.num_actions, out_features=self.size_memory)
-        """
-                self.attention = SelfAttentionLayer(
-                    size_memory=self.size_memory,
-                    n_head=self.n_heads,
-                    attention_mlp_depth=self.attention_mlp_depth,
-                    device=self.device,
-                )
-                """
-
-        # Try out the identity reordered self attention mechanism!
-        self.attention = SelfAttentionLayerIdentityReordered(
-            size_memory=self.size_memory,
-            n_head=self.n_heads,
-            attention_mlp_depth=self.attention_mlp_depth,
-            device=self.device,
-        )
-
+        if cfg.network.attention.identity_reordering:
+            self.attention = SelfAttentionLayerIdentityReordered(
+                size_memory=self.size_memory,
+                n_head=self.n_heads,
+                attention_mlp_depth=self.attention_mlp_depth,
+                device=self.device,
+            )
+        else:
+            self.attention = SelfAttentionLayer(
+                size_memory=self.size_memory,
+                n_head=self.n_heads,
+                attention_mlp_depth=self.attention_mlp_depth,
+                device=self.device,
+            )
 
         self.forget_gate = Gate(input_size=self.size_memory, size_memory=self.size_memory)
         self.input_gate = Gate(input_size=self.size_memory, size_memory=self.size_memory)
