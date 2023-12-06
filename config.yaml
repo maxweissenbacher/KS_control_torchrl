@@ -73,6 +73,7 @@ network:
     actor_memory_key: actor_memory  # name of the key under which the actor memory is stored in tensordict
     critic_memory_key: critic_memory  # name of the key under which the critic memory is stored in tensordict
     initialise_random_memory: True  # If True, initialise memory entries from a unit Gaussian. If False, set to 0.
+    identity_reordering: True  # If True, use identity reordered Transformer
   buffer:
     buffer_observation_key: observation_buffer
     size: 10
