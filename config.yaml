@@ -17,6 +17,7 @@ collector:
   total_frames: 500_000
   init_random_frames: 25_000
   frames_per_batch: 1_000
+  max_episode_length: 1_000  # Reset env after this many steps
   collector_device: cpu
   env_per_collector: 1
   reset_at_each_iter: False
