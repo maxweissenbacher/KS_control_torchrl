@@ -47,7 +47,7 @@ def make_ks_env(cfg):
     # Make transforms
     transform_list = [
         InitTracker(),
-        StepCounter(cfg.env.max_episode_steps // cfg.env.frame_skip),
+        # StepCounter(cfg.env.max_episode_steps // cfg.env.frame_skip),
         RewardSum(),
         FiniteTensorDictCheck(),
         ObservationNorm(in_keys=["observation"], loc=0., scale=10.),
