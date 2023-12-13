@@ -91,19 +91,21 @@ def make_ks_env(cfg):
         )
 
     # For the buffer memory, append the Buffer Transforms
-    if cfg.network.architecture == 'buffer':
+    if cfg.network.architecture == 'buffer' or cfg.network.architecture == 'base':
         transform_list.append(
             CatFrames(dim=-1,
                       N=int(cfg.network.buffer.size),
                       in_keys=["observation"],
                       out_keys=[str(cfg.network.buffer.buffer_observation_key)])
         )
+        """
         transform_list.append(
             CatFrames(dim=-1,
                       N=int(cfg.network.buffer.size),
                       in_keys=["action"],
                       out_keys=[str(cfg.network.buffer.buffer_observation_key)])
         )
+        """
     env_transforms = Compose(*transform_list)
 
     # Set environment hyperparameters
@@ -159,7 +161,7 @@ def make_collector(cfg, train_env, actor_model_explore):
         frames_per_batch=cfg.collector.frames_per_batch // cfg.env.frame_skip,
         total_frames=cfg.collector.total_frames // cfg.env.frame_skip,
         device=cfg.collector.collector_device,
-        max_frames_per_traj=cfg.collector.max_episode_length,
+        max_frames_per_traj=cfg.env.max_episode_steps_train,
     )
     collector.set_seed(env_seed(cfg))
     return collector

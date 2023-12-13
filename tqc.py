@@ -89,7 +89,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
     prb = cfg.replay_buffer.prb
     eval_iter = cfg.logger.eval_iter // cfg.env.frame_skip
     frames_per_batch = cfg.collector.frames_per_batch // cfg.env.frame_skip
-    eval_rollout_steps = cfg.env.max_episode_steps // cfg.env.frame_skip
+    eval_rollout_steps = cfg.env.max_episode_steps_eval // cfg.env.frame_skip
 
     print('stop here')
 
@@ -130,9 +130,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
             for i in range(num_updates):
                 # Sample from replay buffer
                 sampled_tensordict = replay_buffer.sample().clone()
-
-                #print(sampled_tensordict)
-                #print('stop here')
 
                 # Compute loss
                 loss_td = loss_module(sampled_tensordict)
