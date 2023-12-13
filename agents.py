@@ -33,6 +33,7 @@ from models.lstm.lstm import lstm_actor, lstm_critic
 from models.gru.gru import gru_actor, gru_critic
 from models.memoryless.base import basic_tqc_actor, basic_tqc_critic
 from models.buffer.buffer import buffer_tqc_actor, buffer_tqc_critic
+from models.cnn.cnn_agent import cnn_actor, cnn_critic
 from utils.device_finder import network_device
 from utils.rng import env_seed
 import wandb
@@ -91,7 +92,7 @@ def make_ks_env(cfg):
         )
 
     # For the buffer memory, append the Buffer Transforms
-    if cfg.network.architecture == 'buffer' or cfg.network.architecture == 'base':
+    if cfg.network.architecture == 'buffer' or cfg.network.architecture == 'cnn':
         transform_list.append(
             CatFrames(dim=-1,
                       N=int(cfg.network.buffer.size),
@@ -256,6 +257,8 @@ def make_tqc_agent(cfg, train_env, eval_env):
         actor_net = SelfAttentionMemoryActor2(cfg, action_spec)
     elif cfg.network.architecture == 'buffer':
         actor_net = buffer_tqc_actor(cfg, action_spec)
+    elif cfg.network.architecture == 'cnn':
+        actor_net = cnn_actor(cfg, action_spec)
 
     actor_extractor = TensorDictModule(
         NormalParamExtractor(
@@ -296,6 +299,8 @@ def make_tqc_agent(cfg, train_env, eval_env):
         critic = SelfAttentionMemoryCritic2(cfg, action_spec)
     if cfg.network.architecture == 'buffer':
         critic = buffer_tqc_critic(cfg)
+    if cfg.network.architecture == 'cnn':
+        critic = cnn_critic(cfg)
 
     model = nn.ModuleList([actor, critic]).to(device)
 

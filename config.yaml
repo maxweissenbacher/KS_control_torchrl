@@ -42,7 +42,7 @@ optim:
 
 # network
 network:
-  architecture: base  # one of base, lstm, attention, buffer, gru, attention2
+  architecture: cnn  # one of base, lstm, attention, buffer, gru, attention2
   actor_hidden_sizes: [256, 256]
   critic_hidden_sizes: [512, 512, 512]
   n_quantiles: 25
