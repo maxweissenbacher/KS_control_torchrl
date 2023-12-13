@@ -5,7 +5,8 @@ env:
   num_sensors: 10
   burnin: 0
   exp_name: KS
-  max_episode_steps: 1_000
+  max_episode_steps_train: 2_000
+  max_episode_steps_eval: 1_000
   frame_skip: 1  # Sticky actions
   soft_action: True  # Interpolate the actions over frame_skip frames
   autoreg_action: 0.0  # Autoregressive action hyperparameter
@@ -17,7 +18,6 @@ collector:
   total_frames: 500_000
   init_random_frames: 25_000
   frames_per_batch: 1_000
-  max_episode_length: 1_000  # Reset env after this many steps
   collector_device: cpu
   env_per_collector: 1
   reset_at_each_iter: False
@@ -42,7 +42,7 @@ optim:
 
 # network
 network:
-  architecture: attention  # one of base, lstm, attention, buffer, gru, attention2
+  architecture: base  # one of base, lstm, attention, buffer, gru, attention2
   actor_hidden_sizes: [256, 256]
   critic_hidden_sizes: [512, 512, 512]
   n_quantiles: 25
