@@ -58,8 +58,8 @@ class KS:
         :param action: np.array or torch.tensor of shape [len(sensor_locations)].
         :return: Same type and shape as u0. The solution at the next timestep.
         """
-        #print(self.B.shape)
-        #print(action.shape)
+        # print(self.B.shape)
+        # print(action.shape)
 
         if action.dtype != torch.float32 or self.B.dtype != torch.float32:
             print(f'Action dtype {action.dtype} || B dtype {self.B.dtype}')
