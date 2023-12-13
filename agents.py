@@ -92,7 +92,7 @@ def make_ks_env(cfg):
         )
 
     # For the buffer memory, append the Buffer Transforms
-    if cfg.network.architecture == 'buffer' or cfg.network.architecture == 'cnn':
+    if cfg.network.architecture == 'buffer' or cfg.network.architecture == 'cnn' or cfg.network.architecture == 'lstm':
         transform_list.append(
             CatFrames(dim=-1,
                       N=int(cfg.network.buffer.size),
