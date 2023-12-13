@@ -1,8 +1,31 @@
 from tensordict.nn import TensorDictModule, TensorDictSequential
 from torch import nn
+from torch.nn import Module
 from torchrl.modules import MLP, LSTMModule
 from models.memoryless.base import tqc_critic_net
 from utils.device_finder import network_device
+
+
+class LSTMBuffer(Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.buffer_size = cfg.network.buffer.size
+        self.observation_size = cfg.env.num_sensors
+        self.lstm = nn.LSTM(
+            input_size=self.observation_size,
+            hidden_size=cfg.network.lstm.hidden_size,
+            num_layers=cfg.network.lstm.num_layers,
+            device=network_device(cfg),
+            dropout=cfg.network.lstm.dropout,
+            batch_first=True,
+        )
+
+    def forward(self, buffer):
+        buffer = buffer.view(-1, self.buffer_size, self.observation_size)
+        y = self.lstm(buffer)[0][..., -1, :]
+        if y.shape[0] == 1:
+            y = y.view(-1)
+        return y
 
 
 def lstm_actor(cfg, action_spec, in_keys=None, out_keys=None):
@@ -14,9 +37,10 @@ def lstm_actor(cfg, action_spec, in_keys=None, out_keys=None):
     if out_keys is None:
         out_keys = ["_actor_net_out"]
     if in_keys is None:
-        in_keys = ["observation", "prev_action"]
+        in_keys = ["observation", "prev_action", str(cfg.network.buffer.buffer_observation_key)]
     observation_key = in_keys[0]
     previous_action_key = in_keys[1]
+    buffer_key = in_keys[2]
     lstm_key = "_embed"
     final_layer_observation_key = "_observation_mlp"
 
@@ -26,10 +50,11 @@ def lstm_actor(cfg, action_spec, in_keys=None, out_keys=None):
         MLP(num_cells=cfg.network.lstm.preprocessing_mlp_sizes,
             out_features=cfg.network.lstm.feature_size,
             activation_class=activation),
-        in_keys=[observation_key],
+        in_keys=[observation_key, previous_action_key],
         out_keys=[final_layer_observation_key],
     )
 
+    """
     feature_for_lstm = TensorDictModule(
         MLP(num_cells=cfg.network.lstm.preprocessing_mlp_sizes,
             out_features=cfg.network.lstm.feature_size,
@@ -37,15 +62,27 @@ def lstm_actor(cfg, action_spec, in_keys=None, out_keys=None):
         in_keys=[observation_key, previous_action_key],
         out_keys=[lstm_key],
     )
+    """
 
+    buffer_lstm = LSTMBuffer(cfg)
+    lstm = TensorDictModule(
+        buffer_lstm,
+        in_keys=[buffer_key],
+        out_keys=[lstm_key]
+    )
+
+    """
     lstm = LSTMModule(
         input_size=cfg.network.lstm.feature_size,
         hidden_size=cfg.network.lstm.hidden_size,
         num_layers=cfg.network.lstm.num_layers,
         device=network_device(cfg),
+        dropout=cfg.network.lstm.dropout,
         in_key=lstm_key,
         out_key=lstm_key,
+        batch_first=True,
     )
+    """
 
     final_net = MLP(
         num_cells=cfg.network.lstm.final_net_sizes,
@@ -59,7 +96,7 @@ def lstm_actor(cfg, action_spec, in_keys=None, out_keys=None):
         out_keys=out_keys,
     )
 
-    actor_module = TensorDictSequential(mlp_observation_residual, feature_for_lstm, lstm, final_mlp)
+    actor_module = TensorDictSequential(mlp_observation_residual, lstm, final_mlp)
 
     # TO-DO: Look at the cuDNN optimisation options (for computing loss)
 
@@ -74,10 +111,11 @@ def lstm_critic(cfg, in_keys=None, out_keys=None):
     if out_keys is None:
         out_keys = ["state_action_value"]
     if in_keys is None:
-        in_keys = ["observation", "action", "prev_action"]
+        in_keys = ["observation", "action", "prev_action", str(cfg.network.buffer.buffer_observation_key)]
     observation_key = in_keys[0]
     action_key = in_keys[1]
     previous_action_key = in_keys[2]
+    buffer_key = in_keys[3]
     lstm_key = "_embed_critic"
     state_action_embed_key = "_state_action_embed"
 
@@ -91,6 +129,7 @@ def lstm_critic(cfg, in_keys=None, out_keys=None):
         out_keys=[state_action_embed_key],
     )
 
+    """
     mlp_state_prev_action = TensorDictModule(
         MLP(num_cells=cfg.network.lstm.preprocessing_mlp_sizes,
             out_features=cfg.network.lstm.feature_size,
@@ -107,6 +146,14 @@ def lstm_critic(cfg, in_keys=None, out_keys=None):
         in_key=lstm_key,
         out_key=lstm_key,
     )
+    """
+
+    buffer_lstm = LSTMBuffer(cfg)
+    lstm = TensorDictModule(
+        buffer_lstm,
+        in_keys=[buffer_key],
+        out_keys=[lstm_key]
+    )
 
     tqc_critic_mlp = TensorDictModule(
         tqc_critic_net(cfg, model='lstm'),
@@ -116,7 +163,7 @@ def lstm_critic(cfg, in_keys=None, out_keys=None):
 
     critic_module = TensorDictSequential(
         mlp_state_action,
-        mlp_state_prev_action,
+        # mlp_state_prev_action,
         lstm,
         tqc_critic_mlp
     )
