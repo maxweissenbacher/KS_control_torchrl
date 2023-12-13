@@ -45,6 +45,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
             mode=str(cfg.logger.mode),
             project=str(cfg.logger.project_name),
             name=exp_name,
+            config=cfg,
         )
 
     print('Starting experiment ' + exp_name)
