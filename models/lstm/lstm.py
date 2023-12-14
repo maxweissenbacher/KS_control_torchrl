@@ -7,28 +7,6 @@ from models.memoryless.base import tqc_critic_net
 from utils.device_finder import network_device
 
 
-class LSTMBuffer(Module):
-    def __init__(self, cfg):
-        super().__init__()
-        self.buffer_size = cfg.network.buffer.size
-        self.observation_size = cfg.env.num_sensors
-        self.lstm = nn.LSTM(
-            input_size=self.observation_size,
-            hidden_size=cfg.network.lstm.hidden_size,
-            num_layers=cfg.network.lstm.num_layers,
-            device=network_device(cfg),
-            dropout=cfg.network.lstm.dropout,
-            batch_first=True,
-        )
-
-    def forward(self, buffer):
-        buffer = buffer.view(-1, self.buffer_size, self.observation_size)
-        y = self.lstm(buffer)[0][..., -1, :]
-        if y.shape[0] == 1:
-            y = y.view(-1)
-        return y
-
-
 class LSTMBufferModule(TensorDictModuleBase):
     def __init__(self, cfg, in_keys=None, out_keys=None):
         super().__init__()
@@ -123,15 +101,6 @@ def lstm_actor(cfg, action_spec, in_keys=None, out_keys=None):
     )
     """
 
-    """
-    buffer_lstm = LSTMBuffer(cfg)
-    lstm = TensorDictModule(
-        buffer_lstm,
-        in_keys=[buffer_key],
-        out_keys=[lstm_key]
-    )
-    """
-
     lstm = LSTMBufferModule(cfg, in_keys=[buffer_key], out_keys=[lstm_key])
 
     """
@@ -208,15 +177,6 @@ def lstm_critic(cfg, in_keys=None, out_keys=None):
         device=network_device(cfg),
         in_key=lstm_key,
         out_key=lstm_key,
-    )
-    """
-
-    """
-    buffer_lstm = LSTMBuffer(cfg)
-    lstm = TensorDictModule(
-        buffer_lstm,
-        in_keys=[buffer_key],
-        out_keys=[lstm_key]
     )
     """
 
