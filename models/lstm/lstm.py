@@ -211,12 +211,16 @@ def lstm_critic(cfg, in_keys=None, out_keys=None):
     )
     """
 
+    """
     buffer_lstm = LSTMBuffer(cfg)
     lstm = TensorDictModule(
         buffer_lstm,
         in_keys=[buffer_key],
         out_keys=[lstm_key]
     )
+    """
+
+    lstm = LSTMBufferModule(cfg, in_keys=[buffer_key], out_keys=[lstm_key])
 
     tqc_critic_mlp = TensorDictModule(
         tqc_critic_net(cfg, model='lstm'),
