@@ -34,7 +34,7 @@ optim:
   actuator_loss_weight: 0.0  # Weight hyperparameter of actuation size in reward function
   gamma: 0.99
   lr: 3.0e-4
-  weight_decay: 1e-5  # L2 regularisation
+  weight_decay: 0.0  # L2 regularisation | Works well for LSTM | For attention weight_decay > 0 leads to NaNs
   batch_size: 256
   target_update_polyak: 0.995
   alpha_init: 1.0
@@ -42,7 +42,7 @@ optim:
 
 # network
 network:
-  architecture: attention  # one of base, lstm, attention, buffer, gru, attention2
+  architecture: attentionBuffer  # one of base, lstm, attention, buffer, gru, attention2
   actor_hidden_sizes: [256, 256]
   critic_hidden_sizes: [512, 512, 512]
   n_quantiles: 25
@@ -77,6 +77,7 @@ network:
     critic_memory_key: critic_memory  # name of the key under which the critic memory is stored in tensordict
     initialise_random_memory: True  # If True, initialise memory entries from a unit Gaussian. If False, set to 0.
     identity_reordering: True  # If True, use identity reordered Transformer
+    reset_memory: True  # If True, memory is reset at every time step. Only affects the buffer attention memory.
   buffer:
     buffer_observation_key: observation_buffer
     size: 20
