@@ -34,7 +34,7 @@ optim:
   actuator_loss_weight: 0.0  # Weight hyperparameter of actuation size in reward function
   gamma: 0.99
   lr: 3.0e-4
-  weight_decay: 0.0  # L2 regularisation
+  weight_decay: 1e-5  # L2 regularisation
   batch_size: 256
   target_update_polyak: 0.995
   alpha_init: 1.0
@@ -79,7 +79,7 @@ network:
     identity_reordering: True  # If True, use identity reordered Transformer
   buffer:
     buffer_observation_key: observation_buffer
-    size: 10
+    size: 20
 
 # logging
 logger:
