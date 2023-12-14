@@ -27,8 +27,8 @@ from torchrl.envs.transforms.transforms import TensorDictPrimer
 from torchrl.data import UnboundedContinuousTensorSpec
 from typing import Tuple
 from solver.KS_environment import KSenv
-from models.attention.self_attention import SelfAttentionMemoryActor, SelfAttentionMemoryCritic
-from models.attention.self_attention_onememory import SelfAttentionMemoryActor2, SelfAttentionMemoryCritic2
+from models.attention.attention_agent import SelfAttentionMemoryActor, SelfAttentionMemoryCritic
+from models.attention.attention_onememory_agent import SelfAttentionMemoryActor2, SelfAttentionMemoryCritic2
 from models.lstm.lstm import lstm_actor, lstm_critic
 from models.gru.gru import gru_actor, gru_critic
 from models.memoryless.base import basic_tqc_actor, basic_tqc_critic
