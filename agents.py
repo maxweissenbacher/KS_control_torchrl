@@ -27,8 +27,9 @@ from torchrl.envs.transforms.transforms import TensorDictPrimer
 from torchrl.data import UnboundedContinuousTensorSpec
 from typing import Tuple
 from solver.KS_environment import KSenv
-from models.attention.self_attention import SelfAttentionMemoryActor, SelfAttentionMemoryCritic
-from models.attention.self_attention_onememory import SelfAttentionMemoryActor2, SelfAttentionMemoryCritic2
+from models.attention.attention_agent import SelfAttentionMemoryActor, SelfAttentionMemoryCritic
+from models.attention.attention_onememory_agent import SelfAttentionMemoryActor2, SelfAttentionMemoryCritic2
+from models.attention.attention_buffer_agent import SelfAttentionBufferMemoryActor, SelfAttentionBufferMemoryCritic
 from models.lstm.lstm import lstm_actor, lstm_critic
 from models.gru.gru import gru_actor, gru_critic
 from models.memoryless.base import basic_tqc_actor, basic_tqc_critic
@@ -54,7 +55,7 @@ def make_ks_env(cfg):
         ObservationNorm(in_keys=["observation"], loc=0., scale=10.),
     ]
     # For the self attention memory, add a TensorDictPrimer
-    if cfg.network.architecture == 'attention':
+    if cfg.network.architecture == 'attention' or cfg.network.architecture == 'attentionBuffer':
         transform_list.append(
             TensorDictPrimer(
                 {
@@ -92,7 +93,11 @@ def make_ks_env(cfg):
         )
 
     # For the buffer memory, append the Buffer Transforms
-    if cfg.network.architecture == 'buffer' or cfg.network.architecture == 'cnn' or cfg.network.architecture == 'lstm':
+    buffer_required = cfg.network.architecture == 'buffer' or \
+                      cfg.network.architecture == 'cnn' or \
+                      cfg.network.architecture == 'lstm' or \
+                      cfg.network.architecture == 'attentionBuffer'
+    if buffer_required:
         transform_list.append(
             CatFrames(dim=-1,
                       N=int(cfg.network.buffer.size),
@@ -255,6 +260,8 @@ def make_tqc_agent(cfg, train_env, eval_env):
         actor_net = SelfAttentionMemoryActor(cfg, action_spec)
     elif cfg.network.architecture == 'attention2':
         actor_net = SelfAttentionMemoryActor2(cfg, action_spec)
+    elif cfg.network.architecture == 'attentionBuffer':
+        actor_net = SelfAttentionBufferMemoryActor(cfg, action_spec)
     elif cfg.network.architecture == 'buffer':
         actor_net = buffer_tqc_actor(cfg, action_spec)
     elif cfg.network.architecture == 'cnn':
@@ -297,6 +304,8 @@ def make_tqc_agent(cfg, train_env, eval_env):
         critic = SelfAttentionMemoryCritic(cfg, action_spec)
     if cfg.network.architecture == 'attention2':
         critic = SelfAttentionMemoryCritic2(cfg, action_spec)
+    if cfg.network.architecture == 'attentionBuffer':
+        critic = SelfAttentionBufferMemoryCritic(cfg, action_spec)
     if cfg.network.architecture == 'buffer':
         critic = buffer_tqc_critic(cfg)
     if cfg.network.architecture == 'cnn':
