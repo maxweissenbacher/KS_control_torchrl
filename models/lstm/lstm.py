@@ -1,7 +1,8 @@
-from tensordict.nn import TensorDictModule, TensorDictSequential
+from tensordict.nn import TensorDictModule, TensorDictSequential, TensorDictModuleBase
 from torch import nn
 from torch.nn import Module
 from torchrl.modules import MLP, LSTMModule
+from tensordict.tensordict import TensorDictBase, NO_DEFAULT
 from models.memoryless.base import tqc_critic_net
 from utils.device_finder import network_device
 
@@ -26,6 +27,64 @@ class LSTMBuffer(Module):
         if y.shape[0] == 1:
             y = y.view(-1)
         return y
+
+
+class LSTMBufferModule(TensorDictModuleBase):
+    def __init__(self, cfg, in_keys=None, out_keys=None):
+        super().__init__()
+
+        if in_keys is None:
+            in_keys = [str(cfg.network.buffer.buffer_observation_key)]
+        if out_keys is None:
+            raise ValueError("Out key must be specified. out_keys argument expects a list of strings.")
+        self.in_keys = in_keys
+        self.out_keys = out_keys
+        self.buffer_key = in_keys[0]
+        self.hidden_key = '_buffer_lstm_hidden_state'
+        self.cell_key = '_buffer_lstm_cell_state'
+
+        self.buffer_size = cfg.network.buffer.size
+        self.observation_size = cfg.env.num_sensors
+        self.hidden_size = cfg.network.lstm.hidden_size
+        self.num_layers = cfg.network.lstm.num_layers
+
+        # this variable determines whether the hidden and cell state are passed from one iteration to the next
+        self.use_hidden = bool(cfg.network.lstm.use_hidden)
+
+        self.lstm = nn.LSTM(
+            input_size=self.observation_size,
+            hidden_size=self.hidden_size,
+            num_layers=self.num_layers,
+            device=network_device(cfg),
+            dropout=cfg.network.lstm.dropout,
+            batch_first=True,
+        )
+
+    def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
+        buffer = tensordict.get(self.buffer_key, NO_DEFAULT)
+        prev_hidden = tensordict.get(self.hidden_key, None)
+        prev_cell = tensordict.get(self.cell_key, None)
+
+        buffer = buffer.view(-1, self.buffer_size, self.observation_size)
+        if prev_hidden is None or prev_cell is None or not self.use_hidden:
+            output, (hidden, cell) = self.lstm(buffer)
+        else:
+            prev_hidden = prev_hidden.view(self.num_layers, -1, self.hidden_size)
+            prev_cell = prev_cell.view(self.num_layers, -1, self.hidden_size)
+            output, (hidden, cell) = self.lstm(buffer, (prev_hidden, prev_cell))
+        output = output[..., -1, :]
+        if output.shape[0] == 1:
+            output = output.view(-1)
+        if hidden.shape[0] == 1:
+            hidden = hidden.squeeze(dim=0)
+        if cell.shape[0] == 1:
+            cell = cell.squeeze(dim=0)
+
+        tensordict.set(self.out_keys[0], output)
+        tensordict.set(self.hidden_key, hidden)
+        tensordict.set(self.cell_key, cell)
+
+        return tensordict
 
 
 def lstm_actor(cfg, action_spec, in_keys=None, out_keys=None):
@@ -64,12 +123,16 @@ def lstm_actor(cfg, action_spec, in_keys=None, out_keys=None):
     )
     """
 
+    """
     buffer_lstm = LSTMBuffer(cfg)
     lstm = TensorDictModule(
         buffer_lstm,
         in_keys=[buffer_key],
         out_keys=[lstm_key]
     )
+    """
+
+    lstm = LSTMBufferModule(cfg, in_keys=[buffer_key], out_keys=[lstm_key])
 
     """
     lstm = LSTMModule(
