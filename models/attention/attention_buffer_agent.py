@@ -84,7 +84,7 @@ class SelfAttentionBufferMemoryActor(TensorDictModuleBase):
 
         if self.reset_memory:
             # TO-DO: Implement a non-zero, non-random init routine
-            memory = 0.1*torch.randn((*batch_size, self.num_memories, self.size_memory), device=self.device)
+            memory = 0.1*torch.randn((*batch_size, self.num_memories, self.size_memory), device=memory.device)
 
         buffer = buffer.view(*batch_size, self.buffer_size, self.observation_size)
         for i in range(self.buffer_size):
@@ -185,7 +185,7 @@ class SelfAttentionBufferMemoryCritic(TensorDictModuleBase):
 
         if self.reset_memory:
             # TO-DO: Implement a non-zero, non-random init routine
-            memory = 0.1 * torch.randn((*batch_size, self.num_memories, self.size_memory), device=self.device)
+            memory = 0.1 * torch.randn((*batch_size, self.num_memories, self.size_memory), device=memory.device)
 
         buffer = buffer.view(*batch_size, self.buffer_size, self.observation_size)
         for i in range(self.buffer_size):
