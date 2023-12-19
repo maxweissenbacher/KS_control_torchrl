@@ -8,10 +8,10 @@ from tensordict.tensordict import NO_DEFAULT
 from torchrl.modules import MLP
 from models.memoryless.base import tqc_critic_net
 from utils.device_finder import network_device
-from models.attention.transformers import SelfAttentionLayer, SelfAttentionLayerIdentityReordered, Gate, SigmoidLinear, SelfAttentionLayerSimplified
+from models.attention.transformers import SelfAttentionLayer, SelfAttentionLayerIdentityReordered, Gate, SigmoidLinear
 
 
-class SelfAttentionBufferMemoryActor(TensorDictModuleBase):
+class SelfAttentionLSTMMemoryActor(TensorDictModuleBase):
     def __init__(self, cfg, action_spec, in_keys=None, out_keys=None):
         super().__init__()
         if out_keys is None:
@@ -22,7 +22,7 @@ class SelfAttentionBufferMemoryActor(TensorDictModuleBase):
                 str(cfg.network.attention.actor_memory_key),
                 str(cfg.network.buffer.buffer_observation_key),
             ]
-        assert(out_keys[1][1] == in_keys[1])
+        assert (out_keys[1][1] == in_keys[1])
 
         self.memory_key = in_keys[1]
         self.buffer_key = in_keys[2]
@@ -35,10 +35,10 @@ class SelfAttentionBufferMemoryActor(TensorDictModuleBase):
         self.n_heads = cfg.network.attention.n_heads
         self.attention_mlp_depth = cfg.network.attention.attention_mlp_depth
         self.observation_size = cfg.env.num_sensors
+        self.hidden_size = cfg.network.lstm.hidden_size
+        self.num_layers = cfg.network.lstm.num_layers
         self.buffer_size = cfg.network.buffer.size
         self.device = network_device(cfg)
-        self.reset_memory = cfg.network.attention.reset_memory
-        self.reset_memory_random = cfg.network.attention.initialise_random_memory
 
         self.action_mlp = MLP(
             num_cells=cfg.network.attention.actor_mlp_hidden_sizes,
@@ -46,24 +46,27 @@ class SelfAttentionBufferMemoryActor(TensorDictModuleBase):
             activation_class=nn.ReLU,
             device=self.device
         )
+        self.lstm = nn.LSTM(
+            input_size=self.observation_size,
+            hidden_size=self.hidden_size,
+            num_layers=self.num_layers,
+            device=network_device(cfg),
+            batch_first=True,
+        )
+        """
         self.feature = MLP(
             num_cells=[128],
             out_features=self.size_memory,
             activation_class=nn.ReLU,
             device=self.device
         )
-        # self.feature = Linear(in_features=self.observation_size, out_features=self.size_memory)
+        """
+        self.feature = Linear(in_features=self.hidden_size, out_features=self.size_memory)
         if cfg.network.attention.identity_reordering:
             self.attention = SelfAttentionLayerIdentityReordered(
                 size_memory=self.size_memory,
                 n_head=self.n_heads,
                 attention_mlp_depth=self.attention_mlp_depth,
-                device=self.device,
-            )
-        elif cfg.network.attention.simplified_attention:
-            self.attention = SelfAttentionLayerSimplified(
-                size_memory=self.size_memory,
-                n_head=self.n_heads,
                 device=self.device,
             )
         else:
@@ -79,7 +82,7 @@ class SelfAttentionBufferMemoryActor(TensorDictModuleBase):
         self.linear_update_new = SigmoidLinear(size_memory=self.size_memory, init_weight=1-init_weight)
 
     def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
-        defaults = [NO_DEFAULT, NO_DEFAULT, NO_DEFAULT]  # We want to get an error if either memory or value are missing.
+        defaults = [NO_DEFAULT, NO_DEFAULT, NO_DEFAULT]
         is_init = tensordict.get("is_init").squeeze(-1)
         observation, memory, buffer = (
             tensordict.get(key, default)
@@ -87,38 +90,34 @@ class SelfAttentionBufferMemoryActor(TensorDictModuleBase):
         )
         batch_size = is_init.size()
 
-        if self.reset_memory:
-            if self.reset_memory_random:
-                memory = 0.1*torch.randn((*batch_size, self.num_memories, self.size_memory), device=memory.device)
-            else:
-                eye = torch.eye(self.num_memories, self.size_memory, device=memory.device)
-                memory = torch.tile(eye, (*batch_size, *(len(eye.shape)*(1,))))
+        # Map buffer through LSTM
+        buffer = buffer.view(-1, self.buffer_size, self.observation_size)
+        output, (_, _) = self.lstm(buffer)
+        output = output[..., -1, :]
+        if output.shape[0] == 1:
+            output = output.view(-1)
 
-        buffer = buffer.view(*batch_size, self.buffer_size, self.observation_size)
-        buffer_feature = self.feature(buffer)
-        for i in range(self.buffer_size):
-            # Preprocess the observation into a vector of the right size for the memory
-            # observation_feature = self.feature(buffer[..., i, :])
-            observation_feature = buffer_feature[..., i, :]
+        # Preprocess the LSTM output into a vector of the right size for the memory
+        observation_feature = self.feature(output)
 
-            # Compute memory update
-            next_memory = self.attention(memory, observation_feature)
-            next_memory = nn.Tanh()(next_memory)
-            memory = self.linear_update_previous(memory) + self.linear_update_new(next_memory)
+        # Compute memory update
+        next_memory = self.attention(memory, observation_feature)
+        next_memory = nn.Tanh()(next_memory)
+        next_memory = self.linear_update_previous(memory) + self.linear_update_new(next_memory)
 
         # Compute the "action" (whatever is processed into the action) for this step
         # This uses the observation and memory state
-        memory_observation = torch.cat((memory.view([*batch_size, -1]), observation.view([*batch_size, -1])), dim=-1)
+        memory_observation = torch.cat((next_memory.view([*batch_size, -1]), output.view([*batch_size, -1])), dim=-1)
         action_out = self.action_mlp(memory_observation)
 
         # Write output to tensordict
         tensordict.set(self.out_keys[0], action_out)
-        tensordict.set(self.out_keys[1], memory)
+        tensordict.set(self.out_keys[1], next_memory)
 
         return tensordict
 
 
-class SelfAttentionBufferMemoryCritic(TensorDictModuleBase):
+class SelfAttentionLSTMMemoryCritic(TensorDictModuleBase):
     def __init__(self, cfg, action_spec, in_keys=None, out_keys=None):
         super().__init__()
         if out_keys is None:
@@ -144,12 +143,19 @@ class SelfAttentionBufferMemoryCritic(TensorDictModuleBase):
         self.attention_mlp_depth = cfg.network.attention.attention_mlp_depth
         self.observation_size = cfg.env.num_sensors
         self.num_actions = cfg.env.num_actuators
+        self.hidden_size = cfg.network.lstm.hidden_size
+        self.num_layers = cfg.network.lstm.num_layers
         self.buffer_size = cfg.network.buffer.size
         self.device = network_device(cfg)
-        self.reset_memory = cfg.network.attention.reset_memory
-        self.reset_memory_random = cfg.network.attention.initialise_random_memory
 
         self.critic_net = tqc_critic_net(cfg, model='attention')
+        self.lstm = nn.LSTM(
+            input_size=self.observation_size,
+            hidden_size=self.hidden_size,
+            num_layers=self.num_layers,
+            device=network_device(cfg),
+            batch_first=True,
+        )
         self.feature = MLP(
             num_cells=[128],
             out_features=self.size_memory,
@@ -162,12 +168,6 @@ class SelfAttentionBufferMemoryCritic(TensorDictModuleBase):
                 size_memory=self.size_memory,
                 n_head=self.n_heads,
                 attention_mlp_depth=self.attention_mlp_depth,
-                device=self.device,
-            )
-        elif cfg.network.attention.simplified_attention:
-            self.attention = SelfAttentionLayerSimplified(
-                size_memory=self.size_memory,
-                n_head=self.n_heads,
                 device=self.device,
             )
         else:
@@ -192,30 +192,34 @@ class SelfAttentionBufferMemoryCritic(TensorDictModuleBase):
         batch_size = is_init.size()
         observation_action = torch.cat((observation.view([*batch_size, -1]), action.view([*batch_size, -1])), dim=-1)
 
-        if self.reset_memory:
-            if self.reset_memory_random:
-                memory = 0.1 * torch.randn((*batch_size, self.num_memories, self.size_memory), device=memory.device)
-            else:
-                eye = torch.eye(self.num_memories, self.size_memory, device=memory.device)
-                memory = torch.tile(eye, (*batch_size, *(len(eye.shape) * (1,))))
+        # Map buffer through LSTM
+        buffer = buffer.view(-1, self.buffer_size, self.observation_size)
+        output, (_, _) = self.lstm(buffer)
+        output = output[..., -1, :]
+        if output.shape[0] == 1:
+            output = output.view(-1)
 
-        buffer = buffer.view(*batch_size, self.buffer_size, self.observation_size)
-        buffer_feature = self.feature(buffer)
-        for i in range(self.buffer_size):
-            # Preprocess the observation into a vector of the right size for the memory
-            # observation_feature = self.feature(buffer[..., i, :])
-            observation_feature = buffer_feature[..., i, :]
-            # Compute memory update
-            next_memory = self.attention(memory, observation_feature)
-            next_memory = nn.Tanh()(next_memory)
-            memory = self.linear_update_previous(memory) + self.linear_update_new(next_memory)
+        # Preprocess the observation into a vector of the right size for the memory
+        output_feature = self.feature(output)
+
+        # Compute memory update
+        next_memory = self.attention(memory, output_feature)
+        next_memory = nn.Tanh()(next_memory)
+        next_memory = self.linear_update_previous(memory) + self.linear_update_new(next_memory)
 
         # Compute the critic output from memory, observation and action
-        memory_observation_action = torch.cat((memory.view([*batch_size, -1]), observation_action), dim=-1)
+        # memory_observation_action = torch.cat((next_memory.view([*batch_size, -1]), observation_action), dim=-1)
+        memory_observation_action = torch.cat(
+            (next_memory.view([*batch_size, -1]),
+             action.view([*batch_size, -1]),
+             output.view([*batch_size, -1])),
+            dim=-1)
+
         state_action_value = self.critic_net(memory_observation_action)
 
         # Write output to tensordict
         tensordict.set(self.out_keys[0], state_action_value)
-        tensordict.set(self.out_keys[1], memory)
+        tensordict.set(self.out_keys[1], next_memory)
 
         return tensordict
+

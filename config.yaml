@@ -42,7 +42,7 @@ optim:
 
 # network
 network:
-  architecture: attentionBuffer  # one of base, lstm, attention, buffer, gru, attention2
+  architecture: attentionLSTMBuffer  # one of base, lstm, attention, buffer, gru, attention2
   actor_hidden_sizes: [256, 256]
   critic_hidden_sizes: [512, 512, 512]
   n_quantiles: 25
@@ -75,8 +75,9 @@ network:
     attention_mlp_depth: 2  # this is default value in deepmind paper
     actor_memory_key: actor_memory  # name of the key under which the actor memory is stored in tensordict
     critic_memory_key: critic_memory  # name of the key under which the critic memory is stored in tensordict
-    initialise_random_memory: True  # If True, initialise memory entries from a unit Gaussian. If False, set to 0.
-    identity_reordering: True  # If True, use identity reordered Transformer
+    initialise_random_memory: False  # If True, initialise memory entries from a unit Gaussian. If False, set to 0 for attention; set to padded identity for attention buffer
+    identity_reordering: False  # If True, use identity reordered Transformer
+    simplified_attention: True  # If True, use simplified Transformer architecture
     reset_memory: True  # If True, memory is reset at every time step. Only affects the buffer attention memory.
   buffer:
     buffer_observation_key: observation_buffer
