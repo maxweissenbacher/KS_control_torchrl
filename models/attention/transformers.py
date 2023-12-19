@@ -123,6 +123,18 @@ class SelfAttentionLayerIdentityReordered(Module):
         return x
 
 
+class SelfAttentionLayerSimplified(Module):
+    def __init__(self, size_memory, n_head, device):
+        super(SelfAttentionLayerSimplified, self).__init__()
+        self.multi_head_attention = MultiHeadAttention(size_memory, n_head, device)
+        self.norm = nn.LayerNorm(normalized_shape=size_memory)
+
+    def forward(self, memory, input):
+        x = self.multi_head_attention(memory, input)  # Multi head attention
+        x = self.norm(x)
+        return x
+
+
 class Gate(Module):
     def __init__(self, input_size, size_memory):
         super().__init__()
