@@ -30,6 +30,7 @@ from solver.KS_environment import KSenv
 from models.attention.attention_agent import SelfAttentionMemoryActor, SelfAttentionMemoryCritic
 from models.attention.attention_onememory_agent import SelfAttentionMemoryActor2, SelfAttentionMemoryCritic2
 from models.attention.attention_buffer_agent import SelfAttentionBufferMemoryActor, SelfAttentionBufferMemoryCritic
+from models.attention.attention_lstm_buffer_agent import SelfAttentionLSTMMemoryActor, SelfAttentionLSTMMemoryCritic
 from models.lstm.lstm import lstm_actor, lstm_critic
 from models.gru.gru import gru_actor, gru_critic
 from models.memoryless.base import basic_tqc_actor, basic_tqc_critic
@@ -55,7 +56,10 @@ def make_ks_env(cfg):
         ObservationNorm(in_keys=["observation"], loc=0., scale=10.),
     ]
     # For the self attention memory, add a TensorDictPrimer
-    if cfg.network.architecture == 'attention' or cfg.network.architecture == 'attentionBuffer':
+    memory_required = cfg.network.architecture == 'attention' or \
+                      cfg.network.architecture == 'attentionBuffer' or \
+                      cfg.network.architecture == 'attentionLSTMBuffer'
+    if memory_required:
         transform_list.append(
             TensorDictPrimer(
                 {
@@ -96,7 +100,8 @@ def make_ks_env(cfg):
     buffer_required = cfg.network.architecture == 'buffer' or \
                       cfg.network.architecture == 'cnn' or \
                       cfg.network.architecture == 'lstm' or \
-                      cfg.network.architecture == 'attentionBuffer'
+                      cfg.network.architecture == 'attentionBuffer' or \
+                      cfg.network.architecture == 'attentionLSTMBuffer'
     if buffer_required:
         transform_list.append(
             CatFrames(dim=-1,
@@ -262,6 +267,8 @@ def make_tqc_agent(cfg, train_env, eval_env):
         actor_net = SelfAttentionMemoryActor2(cfg, action_spec)
     elif cfg.network.architecture == 'attentionBuffer':
         actor_net = SelfAttentionBufferMemoryActor(cfg, action_spec)
+    elif cfg.network.architecture == 'attentionLSTMBuffer':
+        actor_net = SelfAttentionLSTMMemoryActor(cfg, action_spec)
     elif cfg.network.architecture == 'buffer':
         actor_net = buffer_tqc_actor(cfg, action_spec)
     elif cfg.network.architecture == 'cnn':
@@ -296,19 +303,21 @@ def make_tqc_agent(cfg, train_env, eval_env):
     critic = None
     if cfg.network.architecture == 'base':
         critic = basic_tqc_critic(cfg)
-    if cfg.network.architecture == 'lstm':
+    elif cfg.network.architecture == 'lstm':
         critic = lstm_critic(cfg)
-    if cfg.network.architecture == 'gru':
+    elif cfg.network.architecture == 'gru':
         critic = gru_critic(cfg)
-    if cfg.network.architecture == 'attention':
+    elif cfg.network.architecture == 'attention':
         critic = SelfAttentionMemoryCritic(cfg, action_spec)
-    if cfg.network.architecture == 'attention2':
+    elif cfg.network.architecture == 'attention2':
         critic = SelfAttentionMemoryCritic2(cfg, action_spec)
-    if cfg.network.architecture == 'attentionBuffer':
+    elif cfg.network.architecture == 'attentionBuffer':
         critic = SelfAttentionBufferMemoryCritic(cfg, action_spec)
-    if cfg.network.architecture == 'buffer':
+    elif cfg.network.architecture == 'attentionLSTMBuffer':
+        critic = SelfAttentionLSTMMemoryCritic(cfg, action_spec)
+    elif cfg.network.architecture == 'buffer':
         critic = buffer_tqc_critic(cfg)
-    if cfg.network.architecture == 'cnn':
+    elif cfg.network.architecture == 'cnn':
         critic = cnn_critic(cfg)
 
     model = nn.ModuleList([actor, critic]).to(device)
