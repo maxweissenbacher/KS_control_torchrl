@@ -53,7 +53,7 @@ def make_ks_env(cfg):
         StepCounter(cfg.env.max_episode_steps_train // cfg.env.frame_skip),
         RewardSum(),
         FiniteTensorDictCheck(),
-        ObservationNorm(in_keys=["observation"], loc=0., scale=10.),
+        ObservationNorm(in_keys=["observation"], loc=0., scale=float(cfg.collector.observation_scale)),
     ]
     # For the self attention memory, add a TensorDictPrimer
     memory_required = cfg.network.architecture == 'attention' or \

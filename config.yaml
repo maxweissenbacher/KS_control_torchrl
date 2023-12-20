@@ -21,6 +21,7 @@ collector:
   collector_device: cpu
   env_per_collector: 1
   reset_at_each_iter: False
+  observation_scale: 1.0
 
 # replay buffer
 replay_buffer:
