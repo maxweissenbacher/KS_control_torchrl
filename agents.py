@@ -31,6 +31,7 @@ from models.attention.attention_agent import SelfAttentionMemoryActor, SelfAtten
 from models.attention.attention_onememory_agent import SelfAttentionMemoryActor2, SelfAttentionMemoryCritic2
 from models.attention.attention_buffer_agent import SelfAttentionBufferMemoryActor, SelfAttentionBufferMemoryCritic
 from models.attention.attention_lstm_buffer_agent import SelfAttentionLSTMMemoryActor, SelfAttentionLSTMMemoryCritic
+from models.lstm.buffer_lstm import buffer_lstm_actor, buffer_lstm_critic
 from models.lstm.lstm import lstm_actor, lstm_critic
 from models.gru.gru import gru_actor, gru_critic
 from models.memoryless.base import basic_tqc_actor, basic_tqc_critic
@@ -99,7 +100,7 @@ def make_ks_env(cfg):
     # For the buffer memory, append the Buffer Transforms
     buffer_required = cfg.network.architecture == 'buffer' or \
                       cfg.network.architecture == 'cnn' or \
-                      cfg.network.architecture == 'lstm' or \
+                      cfg.network.architecture == 'buffer_lstm' or \
                       cfg.network.architecture == 'attentionBuffer' or \
                       cfg.network.architecture == 'attentionLSTMBuffer'
     if buffer_required:
@@ -257,6 +258,8 @@ def make_tqc_agent(cfg, train_env, eval_env):
     actor_net = None
     if cfg.network.architecture == 'base':
         actor_net = basic_tqc_actor(cfg, action_spec)
+    elif cfg.network.architecture == 'buffer_lstm':
+        actor_net = buffer_lstm_actor(cfg, action_spec)
     elif cfg.network.architecture == 'lstm':
         actor_net = lstm_actor(cfg, action_spec)
     elif cfg.network.architecture == 'gru':
@@ -303,6 +306,8 @@ def make_tqc_agent(cfg, train_env, eval_env):
     critic = None
     if cfg.network.architecture == 'base':
         critic = basic_tqc_critic(cfg)
+    elif cfg.network.architecture == 'buffer_lstm':
+        critic = buffer_lstm_critic(cfg)
     elif cfg.network.architecture == 'lstm':
         critic = lstm_critic(cfg)
     elif cfg.network.architecture == 'gru':
