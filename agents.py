@@ -50,7 +50,7 @@ def make_ks_env(cfg):
     # Make transforms
     transform_list = [
         InitTracker(),
-        # StepCounter(cfg.env.max_episode_steps // cfg.env.frame_skip),
+        StepCounter(cfg.env.max_episode_steps_train // cfg.env.frame_skip),
         RewardSum(),
         FiniteTensorDictCheck(),
         ObservationNorm(in_keys=["observation"], loc=0., scale=10.),
@@ -172,7 +172,7 @@ def make_collector(cfg, train_env, actor_model_explore):
         frames_per_batch=cfg.collector.frames_per_batch // cfg.env.frame_skip,
         total_frames=cfg.collector.total_frames // cfg.env.frame_skip,
         device=cfg.collector.collector_device,
-        max_frames_per_traj=cfg.env.max_episode_steps_train,
+        # max_frames_per_traj=cfg.env.max_episode_steps_train // cfg.env.frame_skip,
     )
     collector.set_seed(env_seed(cfg))
     return collector
