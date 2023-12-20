@@ -5,7 +5,7 @@ env:
   num_sensors: 10
   burnin: 0
   exp_name: KS
-  max_episode_steps_train: 2_000
+  max_episode_steps_train: 1_000
   max_episode_steps_eval: 1_000
   frame_skip: 1  # Sticky actions
   soft_action: True  # Interpolate the actions over frame_skip frames
