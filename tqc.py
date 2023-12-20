@@ -142,7 +142,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
                 # Update actor
                 optimizer_actor.zero_grad()
                 # For LSTM architecture, need retain_graph=True
-                retain_graph = True if cfg.network.architecture == 'lstm' else False
+                retain_graph = cfg.network.architecture == 'lstm' or cfg.network.architecture == 'buffer_lstm'
                 actor_loss.backward(retain_graph=retain_graph)
                 optimizer_actor.step()
 

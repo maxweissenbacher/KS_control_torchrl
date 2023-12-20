@@ -43,7 +43,7 @@ optim:
 
 # network
 network:
-  architecture: base  # one of base, lstm, attention, buffer, gru, attention2, attentionLSTMBuffer
+  architecture: lstm  # one of base, lstm, attention, buffer, gru, attention2, attentionLSTMBuffer
   actor_hidden_sizes: [256, 256]
   critic_hidden_sizes: [512, 512, 512]
   n_quantiles: 25
@@ -62,6 +62,17 @@ network:
     preprocessing_mlp_sizes: [128]
     feature_size: 128
     critic_hidden_sizes: [512, 512]
+    n_quantiles: 25
+    n_nets: 5
+    use_hidden: True  # If True, the LSTM uses hidden and cell states from previous iterations.
+  buffer_lstm:
+    hidden_size: 256
+    num_layers: 1
+    dropout: 0.1  # only works if num_layers > 1
+    final_net_sizes: [ 128, 128 ]
+    preprocessing_mlp_sizes: [ 128 ]
+    feature_size: 128
+    critic_hidden_sizes: [ 512, 512 ]
     n_quantiles: 25
     n_nets: 5
     use_hidden: True  # If True, the LSTM uses hidden and cell states from previous iterations.
