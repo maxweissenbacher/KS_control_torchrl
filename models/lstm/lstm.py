@@ -36,7 +36,7 @@ def lstm_actor(cfg, action_spec, in_keys=None, out_keys=None):
         MLP(num_cells=cfg.network.lstm.preprocessing_mlp_sizes,
             out_features=cfg.network.lstm.feature_size,
             activation_class=activation),
-        in_keys=[observation_key, previous_action_key],
+        in_keys=[observation_key],
         out_keys=[lstm_key],
     )
 
@@ -96,7 +96,7 @@ def lstm_critic(cfg, in_keys=None, out_keys=None):
         MLP(num_cells=cfg.network.lstm.preprocessing_mlp_sizes,
             out_features=cfg.network.lstm.feature_size,
             activation_class=activation),
-        in_keys=[observation_key, previous_action_key],
+        in_keys=[observation_key, action_key],
         out_keys=[lstm_key],
     )
 
