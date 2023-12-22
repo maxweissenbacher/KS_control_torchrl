@@ -6,7 +6,7 @@ import pathlib
 
 
 #filepath = "run_logs_from_hpc/26_10_1/"
-filepath = "ablation_study/studies/study_nu008_a10/13-17-45/"
+filepath = "ablation_study/studies/comparing_nu_actuators/study_nu005_a9/18-28-03"
 
 path = pathlib.Path(filepath)
 for item in path.rglob("*.pkl"):

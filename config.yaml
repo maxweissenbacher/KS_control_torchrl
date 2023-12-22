@@ -64,7 +64,6 @@ network:
     critic_hidden_sizes: [512, 512]
     n_quantiles: 25
     n_nets: 5
-    use_hidden: True  # If True, the LSTM uses hidden and cell states from previous iterations.
   buffer_lstm:
     hidden_size: 256
     num_layers: 1
@@ -75,7 +74,7 @@ network:
     critic_hidden_sizes: [ 512, 512 ]
     n_quantiles: 25
     n_nets: 5
-    use_hidden: True  # If True, the LSTM uses hidden and cell states from previous iterations.
+    use_hidden: False  # If True, the LSTM uses hidden and cell states from previous iterations.
   attention:
     actor_mlp_hidden_sizes: [128]
     critic_hidden_sizes: [512, 512]
